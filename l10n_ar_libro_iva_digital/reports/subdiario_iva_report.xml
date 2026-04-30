@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+
+    <!--
+        ir.actions.report
+        - paperformat A4 landscape, márgenes ajustados para ganar columnas.
+    -->
+    <record id="paperformat_subdiario_iva" model="report.paperformat">
+        <field name="name">Subdiario IVA — A4 landscape</field>
+        <field name="default" eval="False"/>
+        <field name="format">A4</field>
+        <field name="page_height">0</field>
+        <field name="page_width">0</field>
+        <field name="orientation">Landscape</field>
+        <field name="margin_top">10</field>
+        <field name="margin_bottom">10</field>
+        <field name="margin_left">5</field>
+        <field name="margin_right">5</field>
+        <field name="header_line" eval="False"/>
+        <field name="header_spacing">10</field>
+        <field name="dpi">90</field>
+    </record>
+
+    <record id="action_report_subdiario_iva" model="ir.actions.report">
+        <field name="name">Subdiario IVA</field>
+        <field name="model">l10n_ar.subdiario.iva.wizard</field>
+        <field name="report_type">qweb-pdf</field>
+        <field name="report_name">l10n_ar_libro_iva_digital.report_subdiario_iva</field>
+        <field name="report_file">l10n_ar_libro_iva_digital.report_subdiario_iva</field>
+        <field name="paperformat_id" ref="paperformat_subdiario_iva"/>
+        <field name="binding_model_id" eval="False"/>
+        <field name="print_report_name">'subdiario_iva_%s_%s' % (object.date_from.strftime('%Y%m%d'), object.date_to.strftime('%Y%m%d'))</field>
+    </record>
+
+    <!--
+        Template QWeb. Estructura:
+            - cabecera con compañia + período
+            - sección Ventas (si hay)
+            - page break
+            - sección Compras (si hay)
+        Cada sección: tabla angosta con totales al pie.
+    -->
+    <template id="report_subdiario_iva">
+        <t t-call="web.html_container">
+            <t t-call="web.internal_layout">
+                <t t-set="company" t-value="report['company']"/>
+                <t t-set="date_from" t-value="report['date_from']"/>
+                <t t-set="date_to" t-value="report['date_to']"/>
+                <t t-set="alicuotas" t-value="report['alicuotas']"/>
+                <div class="page" style="font-size: 9px;">
+                    <style>
+                        table.subdiario-iva { width: 100%; border-collapse: collapse; }
+                        table.subdiario-iva th, table.subdiario-iva td {
+                            border: 1px solid #888; padding: 1px 3px;
+                            white-space: nowrap; vertical-align: top;
+                        }
+                        table.subdiario-iva th {
+                            background: #334E68; color: #fff; font-weight: 600;
+                            text-align: center; font-size: 8px;
+                        }
+                        table.subdiario-iva td.right { text-align: right; font-variant-numeric: tabular-nums; }
+                        table.subdiario-iva td.center { text-align: center; }
+                        table.subdiario-iva tr.totals td {
+                            background: #FFF8C5; font-weight: 700;
+                            border-top: 2px solid #000;
+                        }
+                        h2.subdiario-titulo {
+                            font-size: 14px; margin-bottom: 4px; margin-top: 12px;
+                        }
+                        .meta { font-size: 10px; color: #444; margin-bottom: 8px; }
+                        .razon { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+                    </style>
+
+                    <div class="meta">
+                        <strong t-out="company.name or ''"/> — CUIT
+                        <span t-out="company.vat or ''"/> —
+                        Período <span t-out="date_from"/> a <span t-out="date_to"/>
+                    </div>
+
+                    <!-- ============== VENTAS ============== -->
+                    <t t-if="report.get('sales')">
+                        <h2 class="subdiario-titulo">Subdiario IVA — VENTAS</h2>
+                        <table class="subdiario-iva">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Pto Vta</th>
+                                    <th>Nro</th>
+                                    <th>Cod Doc</th>
+                                    <th>Nro Doc</th>
+                                    <th>Razón Social</th>
+                                    <th>Cond IVA</th>
+                                    <th>Mon</th>
+                                    <th>Cotiz</th>
+                                    <th>No Grav</th>
+                                    <th>Exento</th>
+                                    <th>Neto Grav</th>
+                                    <t t-foreach="alicuotas" t-as="pct">
+                                        <th><t t-out="pct"/>% Base</th>
+                                        <th><t t-out="pct"/>% IVA</th>
+                                    </t>
+                                    <th>Perc IVA</th>
+                                    <th>Perc IIBB</th>
+                                    <th>Perc Mun</th>
+                                    <th>Internos</th>
+                                    <th>Otros</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="report['sales']" t-as="row">
+                                    <td class="center" t-out="row['fecha']"/>
+                                    <td t-out="row['tipo_cbte_label']"/>
+                                    <td class="right" t-out="row['pto_vta']"/>
+                                    <td class="right" t-out="row['nro_cbte']"/>
+                                    <td class="right" t-out="row['doc_codigo']"/>
+                                    <td t-out="row['doc_nro']"/>
+                                    <td class="razon" t-out="row['razon_social']"/>
+                                    <td t-out="row['cond_iva']"/>
+                                    <td class="center" t-out="row['cod_moneda']"/>
+                                    <td class="right" t-out="'%.4f' % (row['tipo_cambio'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['no_gravado'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['exento'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['neto_gravado'] or 0)"/>
+                                    <t t-foreach="alicuotas" t-as="pct">
+                                        <t t-set="key" t-value="('21' if pct == 21.0 else ('10_5' if pct == 10.5 else ('27' if pct == 27.0 else ('5' if pct == 5.0 else '2_5'))))"/>
+                                        <td class="right" t-out="'%.2f' % (row.get('base_' + key) or 0)"/>
+                                        <td class="right" t-out="'%.2f' % (row.get('iva_' + key) or 0)"/>
+                                    </t>
+                                    <td class="right" t-out="'%.2f' % (row['perc_iva'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['perc_iibb'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['perc_mun'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['internos'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['otros'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['total'] or 0)"/>
+                                </tr>
+                                <!-- Totales Ventas -->
+                                <t t-set="tv" t-value="report['totals_sales']"/>
+                                <tr class="totals">
+                                    <td colspan="10">TOTALES VENTAS (<span t-out="len(report['sales'])"/> cbtes)</td>
+                                    <td class="right" t-out="'%.2f' % (tv.get('no_gravado') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tv.get('exento') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tv.get('neto_gravado') or 0)"/>
+                                    <t t-foreach="alicuotas" t-as="pct">
+                                        <t t-set="key" t-value="('21' if pct == 21.0 else ('10_5' if pct == 10.5 else ('27' if pct == 27.0 else ('5' if pct == 5.0 else '2_5'))))"/>
+                                        <td class="right" t-out="'%.2f' % (tv.get('base_' + key) or 0)"/>
+                                        <td class="right" t-out="'%.2f' % (tv.get('iva_' + key) or 0)"/>
+                                    </t>
+                                    <td class="right" t-out="'%.2f' % (tv.get('perc_iva') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tv.get('perc_iibb') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tv.get('perc_mun') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tv.get('internos') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tv.get('otros') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tv.get('total') or 0)"/>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </t>
+
+                    <!-- ============== COMPRAS ============== -->
+                    <t t-if="report.get('purchases')">
+                        <p t-if="report.get('sales')" style="page-break-before: always;"/>
+                        <h2 class="subdiario-titulo">Subdiario IVA — COMPRAS</h2>
+                        <table class="subdiario-iva">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo</th>
+                                    <th>Pto Vta</th>
+                                    <th>Nro</th>
+                                    <th>Cod Doc</th>
+                                    <th>Nro Doc</th>
+                                    <th>Razón Social</th>
+                                    <th>Cond IVA</th>
+                                    <th>Mon</th>
+                                    <th>Cotiz</th>
+                                    <th>No Grav</th>
+                                    <th>Exento</th>
+                                    <th>Neto Grav</th>
+                                    <t t-foreach="alicuotas" t-as="pct">
+                                        <th><t t-out="pct"/>% Base</th>
+                                        <th><t t-out="pct"/>% IVA</th>
+                                    </t>
+                                    <th>Perc IVA</th>
+                                    <th>Perc IIBB</th>
+                                    <th>Perc Mun</th>
+                                    <th>Internos</th>
+                                    <th>Otros</th>
+                                    <th>Cred Fiscal</th>
+                                    <th>Desp Imp</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="report['purchases']" t-as="row">
+                                    <td class="center" t-out="row['fecha']"/>
+                                    <td t-out="row['tipo_cbte_label']"/>
+                                    <td class="right" t-out="row['pto_vta']"/>
+                                    <td class="right" t-out="row['nro_cbte']"/>
+                                    <td class="right" t-out="row['doc_codigo']"/>
+                                    <td t-out="row['doc_nro']"/>
+                                    <td class="razon" t-out="row['razon_social']"/>
+                                    <td t-out="row['cond_iva']"/>
+                                    <td class="center" t-out="row['cod_moneda']"/>
+                                    <td class="right" t-out="'%.4f' % (row['tipo_cambio'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['no_gravado'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['exento'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['neto_gravado'] or 0)"/>
+                                    <t t-foreach="alicuotas" t-as="pct">
+                                        <t t-set="key" t-value="('21' if pct == 21.0 else ('10_5' if pct == 10.5 else ('27' if pct == 27.0 else ('5' if pct == 5.0 else '2_5'))))"/>
+                                        <td class="right" t-out="'%.2f' % (row.get('base_' + key) or 0)"/>
+                                        <td class="right" t-out="'%.2f' % (row.get('iva_' + key) or 0)"/>
+                                    </t>
+                                    <td class="right" t-out="'%.2f' % (row['perc_iva'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['perc_iibb'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['perc_mun'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['internos'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row['otros'] or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (row.get('credito_fiscal_computable') or 0)"/>
+                                    <td t-out="row.get('despacho_importacion') or ''"/>
+                                    <td class="right" t-out="'%.2f' % (row['total'] or 0)"/>
+                                </tr>
+                                <!-- Totales Compras -->
+                                <t t-set="tc" t-value="report['totals_purchases']"/>
+                                <tr class="totals">
+                                    <td colspan="10">TOTALES COMPRAS (<span t-out="len(report['purchases'])"/> cbtes)</td>
+                                    <td class="right" t-out="'%.2f' % (tc.get('no_gravado') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tc.get('exento') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tc.get('neto_gravado') or 0)"/>
+                                    <t t-foreach="alicuotas" t-as="pct">
+                                        <t t-set="key" t-value="('21' if pct == 21.0 else ('10_5' if pct == 10.5 else ('27' if pct == 27.0 else ('5' if pct == 5.0 else '2_5'))))"/>
+                                        <td class="right" t-out="'%.2f' % (tc.get('base_' + key) or 0)"/>
+                                        <td class="right" t-out="'%.2f' % (tc.get('iva_' + key) or 0)"/>
+                                    </t>
+                                    <td class="right" t-out="'%.2f' % (tc.get('perc_iva') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tc.get('perc_iibb') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tc.get('perc_mun') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tc.get('internos') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tc.get('otros') or 0)"/>
+                                    <td class="right" t-out="'%.2f' % (tc.get('credito_fiscal_computable') or 0)"/>
+                                    <td/>
+                                    <td class="right" t-out="'%.2f' % (tc.get('total') or 0)"/>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </t>
+
+                    <t t-if="not report.get('sales') and not report.get('purchases')">
+                        <p>Sin comprobantes en el período seleccionado.</p>
+                    </t>
+                </div>
+            </t>
+        </t>
+    </template>
+
+</odoo>

@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <!--
+        Extiende el form view de `account.move` para:
+
+        1. Botón "Enviar a ARCA" en el header (visible cuando el move está
+           posted, no tiene CAE todavía y el journal está configurado para
+           WSFEv1). Útil cuando `_post` falla por timeout/red y queda el
+           move posted sin CAE — el operador re-dispara la emisión.
+
+        2. Botón "Reintentar ARCA" cuando el move está rechazado (R).
+
+        3. Tab "AFIP" con CAE, vto, modo, resultado, observaciones,
+           QR (preview) y XML req/resp (acceso restringido a Account
+           Manager por privacidad de los datos del partner).
+    -->
+    <record id="view_move_form_l10n_ar_edi" model="ir.ui.view">
+        <field name="name">account.move.form.l10n_ar_edi</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+
+            <!--
+                1) Para facturas electrónicas AR ocultamos los botones
+                   `action_post` estándar de Odoo. ¡OJO!: en el view
+                   combinado de account.move HAY DOS botones con
+                   name="action_post" (uno "Publicar" y otro "Confirmar")
+                   y un `<button name="action_post" position="attributes">`
+                   solo afecta al primero. Por eso usamos `<xpath>` con
+                   índice para tocar cada uno por separado, conservando
+                   sus expresiones `invisible` originales (que pueden
+                   incluir hide_post_button, move_type=='entry', etc.)
+                   vía `add` con separator " or ".
+            -->
+            <xpath expr="(//button[@name='action_post'])[1]" position="attributes">
+                <attribute name="invisible" add="l10n_ar_is_electronic_invoice" separator=" or "/>
+            </xpath>
+            <xpath expr="(//button[@name='action_post'])[2]" position="attributes">
+                <attribute name="invisible" add="l10n_ar_is_electronic_invoice" separator=" or "/>
+            </xpath>
+
+            <!--
+                2) "Restablecer a borrador" no se permite cuando el move
+                   ya tiene CAE: legalmente una factura electrónica
+                   emitida no se anula volviéndola a borrador, se
+                   contracara con una NC. Si la factura quedó posted
+                   SIN CAE (error en la emisión), sí se puede volver a
+                   draft para corregir y reintentar.
+            -->
+            <button name="button_draft" position="attributes">
+                <attribute name="invisible">state != 'posted' or l10n_ar_afip_auth_code</attribute>
+            </button>
+
+            <!--
+                3) Botón "Validar en AFIP/ARCA" — sólo en draft, y sólo
+                   para journals electrónicos AR. El field
+                   `l10n_ar_is_electronic_invoice` debe estar presente
+                   como <field invisible="1"/> abajo, sino las expresiones
+                   de los `invisible` se evalúan como False.
+            -->
+            <xpath expr="//header" position="inside">
+                <field name="l10n_ar_is_electronic_invoice" invisible="1"/>
+
+                <button name="action_l10n_ar_validar_arca"
+                        type="object"
+                        string="Validar en AFIP/ARCA"
+                        class="oe_highlight"
+                        data-hotkey="v"
+                        invisible="state != 'draft' or not l10n_ar_is_electronic_invoice"
+                        groups="account.group_account_invoice"/>
+
+                <!-- 4) Reintento manual unificado: cubre los dos casos
+                        de fallo — posted SIN CAE (timeout/red durante
+                        emisión) y posted CON Resultado='R' (rechazado
+                        por AFIP). Ambos llevan al mismo handler. -->
+                <button name="action_l10n_ar_request_cae"
+                        type="object"
+                        string="Reintentar AFIP/ARCA"
+                        class="btn-warning"
+                        invisible="state != 'posted'
+                                   or not l10n_ar_is_electronic_invoice
+                                   or (l10n_ar_afip_auth_code and l10n_ar_afip_result != 'R')"
+                        groups="account.group_account_invoice"/>
+            </xpath>
+
+            <!-- Tab "AFIP" en el notebook -->
+            <xpath expr="//notebook" position="inside">
+                <page string="AFIP"
+                      name="l10n_ar_afip"
+                      invisible="not l10n_ar_is_electronic_invoice">
+                    <group>
+                        <group string="Autorización">
+                            <field name="l10n_ar_afip_result"
+                                   readonly="1"
+                                   widget="badge"
+                                   decoration-success="l10n_ar_afip_result == 'A'"
+                                   decoration-warning="l10n_ar_afip_result == 'O'"
+                                   decoration-danger="l10n_ar_afip_result == 'R'"/>
+                            <field name="l10n_ar_afip_auth_mode" readonly="1"/>
+                            <field name="l10n_ar_afip_auth_code" readonly="1"/>
+                            <field name="l10n_ar_afip_auth_code_due" readonly="1"/>
+                        </group>
+                        <group string="Datos del comprobante">
+                            <field name="l10n_ar_afip_concept" readonly="1"
+                                   invisible="not l10n_ar_afip_concept"/>
+                            <field name="l10n_ar_afip_service_start" readonly="1"
+                                   invisible="l10n_ar_afip_concept not in ('2', '3', '4')"/>
+                            <field name="l10n_ar_afip_service_end" readonly="1"
+                                   invisible="l10n_ar_afip_concept not in ('2', '3', '4')"/>
+                        </group>
+                    </group>
+
+                    <!-- Observaciones AFIP (resultado=O o eventos informativos) -->
+                    <group string="Observaciones AFIP"
+                           invisible="not l10n_ar_afip_observations">
+                        <field name="l10n_ar_afip_observations"
+                               nolabel="1"
+                               readonly="1"
+                               widget="text"/>
+                    </group>
+
+                    <!-- QR — solo preview, el campo ya viene como URL completa. -->
+                    <group string="QR de validación"
+                           invisible="not l10n_ar_afip_qr_code">
+                        <field name="l10n_ar_afip_qr_code"
+                               nolabel="1"
+                               readonly="1"
+                               widget="url"/>
+                    </group>
+
+                    <!-- XML req/resp — solo Account Manager, para forensic. -->
+                    <group string="XML enviado / recibido (auditoría)"
+                           groups="account.group_account_manager">
+                        <field name="l10n_ar_afip_xml_request"
+                               readonly="1"
+                               widget="text"/>
+                        <field name="l10n_ar_afip_xml_response"
+                               readonly="1"
+                               widget="text"/>
+                    </group>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <!--
+        Multi-company record rule para account.ar.vat.line.
+
+        Sin esta rule la vista SQL devuelve filas de TODAS las companies
+        del sistema. Como la vista es read-only y agrega muchos joins,
+        Odoo no aplica automáticamente la rule de account.move (que está
+        en otro modelo). El síntoma típico es: el usuario hace click en
+        una factura que aparece en la vista pero pertenece a otra
+        company, y revienta con un Error de acceso sobre res.partner
+        (porque la rule de partners corta antes que cualquier otra cosa).
+
+        La rule restringe la vista a los moves cuya `company_id` está
+        en `user.company_ids` (las companies a las que el usuario tiene
+        acceso, típicamente seleccionables en el switcher).
+    -->
+    <record id="account_ar_vat_line_company_rule" model="ir.rule">
+        <field name="name">account.ar.vat.line: multi-company</field>
+        <field name="model_id" ref="model_account_ar_vat_line"/>
+        <field name="domain_force">[('company_id', 'in', company_ids)]</field>
+        <field name="global" eval="True"/>
+    </record>
+</odoo>

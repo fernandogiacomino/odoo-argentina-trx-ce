@@ -1,0 +1,7 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_l10n_ar_libro_iva_digital_wizard_user,l10n_ar.libro.iva.digital.wizard user,model_l10n_ar_libro_iva_digital_wizard,account.group_account_invoice,1,1,1,1
+access_l10n_ar_libro_iva_digital_wizard_manager,l10n_ar.libro.iva.digital.wizard manager,model_l10n_ar_libro_iva_digital_wizard,account.group_account_manager,1,1,1,1
+access_l10n_ar_subdiario_iva_wizard_user,l10n_ar.subdiario.iva.wizard user,model_l10n_ar_subdiario_iva_wizard,account.group_account_invoice,1,1,1,1
+access_l10n_ar_subdiario_iva_wizard_manager,l10n_ar.subdiario.iva.wizard manager,model_l10n_ar_subdiario_iva_wizard,account.group_account_manager,1,1,1,1
+access_account_ar_vat_line_user,account.ar.vat.line user,model_account_ar_vat_line,account.group_account_invoice,1,0,0,0
+access_account_ar_vat_line_manager,account.ar.vat.line manager,model_account_ar_vat_line,account.group_account_manager,1,0,0,0

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+
+    <!--
+        Inyecta el bloque "QR + CAE" RG 4291 antes del footer del ticket
+        cuando la factura asociada al pedido tiene CAE.
+        Estructura visual: bloque centrado con QR (SVG 140x140) y debajo
+        nro de comprobante, CAE, vto y leyenda RG 4291.
+    -->
+    <t t-name="l10n_ar_pos_edi.OrderReceipt"
+       t-inherit="point_of_sale.OrderReceipt"
+       t-inherit-mode="extension">
+
+        <!--
+            Ocultar el bloque "Need an invoice? / ¿Necesita factura?" del
+            portal POS cuando ya hay CAE (la factura electrónica AR ya
+            existe — no tiene sentido invitar al cliente a pedir una nueva
+            via portal).
+        -->
+        <xpath expr="//img[@id='posqrcode']/../.." position="attributes">
+            <!-- OWL compila t-if como expresión JS: usar `!arHasCae`
+                 (sintaxis JS), NO `not arHasCae` (Python) — owl no
+                 traduce `not` y rompe con SyntaxError "Unexpected
+                 identifier 'ctx'". El separator " and " sí lo traduce
+                 a `&&` correctamente. -->
+            <attribute name="t-if" add="!arHasCae" separator=" and "/>
+        </xpath>
+
+        <xpath expr="//div[hasclass('before-footer')]" position="before">
+            <t t-if="arHasCae">
+                <div class="pos-receipt-l10n-ar-cae pt-3 text-center"
+                     style="font-size: 90%;">
+                    <img t-att-src="arQrDataUrl"
+                         class="m-0"
+                         style="width: 140px; height: 140px;"
+                         alt="QR AFIP RG 4291"/>
+                </div>
+                <div class="pos-receipt-l10n-ar-cae-info pt-1"
+                     style="font-size: 90%;">
+                    <div t-if="arInvoice.l10n_latam_document_number" class="d-flex">
+                        <span>Comprobante</span>
+                        <span class="ms-auto font-monospace"
+                              t-out="arInvoice.l10n_latam_document_number"/>
+                    </div>
+                    <div class="d-flex">
+                        <span>CAE</span>
+                        <span class="ms-auto font-monospace"
+                              t-out="arInvoice.l10n_ar_afip_auth_code"/>
+                    </div>
+                    <div t-if="arInvoice.l10n_ar_afip_auth_code_due" class="d-flex">
+                        <span>Vto. CAE</span>
+                        <span class="ms-auto font-monospace"
+                              t-out="arInvoice.l10n_ar_afip_auth_code_due"/>
+                    </div>
+                    <div class="text-center pt-1" style="font-size: 80%; opacity: 0.7;">
+                        RG AFIP 4291
+                    </div>
+                </div>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

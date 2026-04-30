@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <!--
+        Extiende el template `l10n_ar.report_invoice_document` (community)
+        para inyectar el código QR de AFIP RG 4291 + CAE + vto en el PDF
+        de la factura.
+
+        Estrategia:
+          - Reutilizamos el endpoint `/report/barcode/` de Odoo core
+            para no agregar dependencias (no necesitamos `qrcode` lib).
+          - El campo `o.l10n_ar_afip_qr_code` ya está calculado por
+            `_compute_l10n_ar_afip_qr_code` en account_move.py — devuelve
+            la URL completa con base64url del payload.
+          - Inyectamos en el `custom_footer` (sobre el pager) y al final
+            del documento como bloque visible.
+    -->
+
+    <!-- Sobreescribir el `custom_footer` para meter QR + CAE/vto. -->
+    <template id="report_invoice_document" inherit_id="l10n_ar.report_invoice_document">
+
+        <!-- 1) Reemplazar custom_footer agregando bloque QR a la izquierda
+                y bloque CAE/vto encima del pager a la derecha. -->
+        <t t-set="custom_footer" position="replace">
+            <t t-set="custom_footer">
+                <div class="row">
+                    <div name="footer_left_column" class="col-8 text-start">
+                        <!-- QR AFIP — solo si la factura tiene CAE. -->
+                        <t t-if="o.l10n_ar_afip_qr_code">
+                            <img t-att-src="'/report/barcode/?barcode_type=QR&amp;value=%s&amp;width=400&amp;height=400&amp;quiet=0' % o.l10n_ar_afip_qr_code"
+                                 style="height: 110px; width: 110px;"
+                                 alt="QR AFIP"/>
+                        </t>
+                    </div>
+                    <div name="footer_right_column" class="col-4 text-end">
+                        <!-- CAE / vto. -->
+                        <t t-if="o.l10n_ar_afip_auth_code">
+                            <div>
+                                <strong t-out="o.l10n_ar_afip_auth_mode or 'CAE'"/>:
+                                <span t-field="o.l10n_ar_afip_auth_code"/>
+                            </div>
+                            <div t-if="o.l10n_ar_afip_auth_code_due">
+                                <strong>Vto. CAE: </strong>
+                                <span t-field="o.l10n_ar_afip_auth_code_due"/>
+                            </div>
+                        </t>
+                        <div name="pager" t-if="report_type == 'pdf'">
+                            Page: <span class="page"/> / <span class="topage"/>
+                        </div>
+                    </div>
+                </div>
+            </t>
+        </t>
+
+    </template>
+</odoo>

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+
+    <!-- ==================================================
+         List/Tree (renombrado en 19.0; aún se acepta `tree`)
+         ================================================== -->
+    <record id="view_account_ar_vat_line_tree" model="ir.ui.view">
+        <field name="name">account.ar.vat.line.list</field>
+        <field name="model">account.ar.vat.line</field>
+        <field name="arch" type="xml">
+            <list string="Subdiario IVA — Detalle" create="false" delete="false" edit="false"
+                  default_order="invoice_date asc, name asc">
+                <field name="tax_type" optional="show"/>
+                <field name="invoice_date" optional="show"/>
+                <field name="document_type_id" optional="show"/>
+                <field name="name" optional="show"/>
+                <field name="cuit" optional="show"/>
+                <field name="partner_name" optional="show"/>
+                <field name="afip_responsibility_type_id" optional="show"/>
+                <field name="amount_total" sum="Total" optional="show"/>
+                <field name="no_gravado" sum="Total No Gravado" optional="show"/>
+                <field name="exento" sum="Total Exento" optional="show"/>
+                <field name="neto_gravado" sum="Total Neto Gravado" optional="show"/>
+                <field name="base_21" sum="Total Neto 21%" optional="hide"/>
+                <field name="vat_21" sum="Total IVA 21%" optional="show"/>
+                <field name="base_10_5" sum="Total Neto 10,5%" optional="hide"/>
+                <field name="vat_10_5" sum="Total IVA 10,5%" optional="show"/>
+                <field name="base_27" sum="Total Neto 27%" optional="hide"/>
+                <field name="vat_27" sum="Total IVA 27%" optional="hide"/>
+                <field name="base_5" sum="Total Neto 5%" optional="hide"/>
+                <field name="vat_5" sum="Total IVA 5%" optional="hide"/>
+                <field name="base_2_5" sum="Total Neto 2,5%" optional="hide"/>
+                <field name="vat_2_5" sum="Total IVA 2,5%" optional="hide"/>
+                <field name="iva_total" sum="Total IVA" optional="show"/>
+                <field name="perc_iva" sum="Total Perc IVA" optional="hide"/>
+                <field name="perc_iibb" sum="Total Perc IIBB" optional="show"/>
+                <field name="perc_municipal" sum="Total Perc Mun" optional="hide"/>
+                <field name="perc_otras" sum="Total Otras Perc" optional="hide"/>
+                <field name="otros_tributos" sum="Total Otros Trib" optional="hide"/>
+                <field name="journal_id" optional="hide"/>
+                <field name="state" optional="hide"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+                <field name="move_id" optional="hide" column_invisible="True"/>
+                <button name="action_open_move" type="object" string="Ver factura"
+                        icon="fa-external-link" help="Abrir el comprobante"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- ==================================================
+         Pivot — útil para totales por mes / partner / tipo
+         ================================================== -->
+    <record id="view_account_ar_vat_line_pivot" model="ir.ui.view">
+        <field name="name">account.ar.vat.line.pivot</field>
+        <field name="model">account.ar.vat.line</field>
+        <field name="arch" type="xml">
+            <pivot string="Subdiario IVA — Pivot">
+                <field name="invoice_date" interval="month" type="row"/>
+                <field name="tax_type" type="col"/>
+                <field name="amount_total" type="measure"/>
+                <field name="neto_gravado" type="measure"/>
+                <field name="iva_total" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <!-- ==================================================
+         Graph — bonus visual
+         ================================================== -->
+    <record id="view_account_ar_vat_line_graph" model="ir.ui.view">
+        <field name="name">account.ar.vat.line.graph</field>
+        <field name="model">account.ar.vat.line</field>
+        <field name="arch" type="xml">
+            <graph string="Subdiario IVA — Gráfico" type="bar" stacked="True">
+                <field name="invoice_date" interval="month"/>
+                <field name="tax_type"/>
+                <field name="amount_total" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <!-- ==================================================
+         Search con filtros y groupby útiles
+         ================================================== -->
+    <record id="view_account_ar_vat_line_search" model="ir.ui.view">
+        <field name="name">account.ar.vat.line.search</field>
+        <field name="model">account.ar.vat.line</field>
+        <field name="arch" type="xml">
+            <search string="Subdiario IVA">
+                <field name="name"/>
+                <field name="partner_name" string="Partner / Razón social"/>
+                <field name="cuit"/>
+                <field name="document_type_id"/>
+                <field name="journal_id"/>
+                <filter string="Ventas" name="sales" domain="[('tax_type','=','sale')]"/>
+                <filter string="Compras" name="purchases" domain="[('tax_type','=','purchase')]"/>
+                <separator/>
+                <filter string="Mes actual" name="this_month"
+                        domain="[('invoice_date','&gt;=', (context_today()).strftime('%Y-%m-01'))]"/>
+                <filter string="Año actual" name="this_year"
+                        domain="[('invoice_date','&gt;=', (context_today()).strftime('%Y-01-01'))]"/>
+                <separator/>
+                <filter string="Con percepción IIBB" name="has_iibb" domain="[('perc_iibb','&gt;',0)]"/>
+                <filter string="Con percepción IVA" name="has_perc_iva" domain="[('perc_iva','&gt;',0)]"/>
+                <separator/>
+                <filter string="Tipo (Vta/Cmp)" name="gb_tax_type" context="{'group_by':'tax_type'}"/>
+                <filter string="Tipo de comprobante" name="gb_doctype" context="{'group_by':'document_type_id'}"/>
+                <filter string="Cond. IVA" name="gb_iva" context="{'group_by':'afip_responsibility_type_id'}"/>
+                <filter string="Partner" name="gb_partner" context="{'group_by':'commercial_partner_id'}"/>
+                <filter string="Diario" name="gb_journal" context="{'group_by':'journal_id'}"/>
+                <filter string="Mes" name="gb_month" context="{'group_by':'invoice_date:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ==================================================
+         Action principal
+         ================================================== -->
+    <record id="action_account_ar_vat_line" model="ir.actions.act_window">
+        <field name="name">Subdiario IVA — Detalle</field>
+        <field name="res_model">account.ar.vat.line</field>
+        <field name="view_mode">list,pivot,graph</field>
+        <field name="search_view_id" ref="view_account_ar_vat_line_search"/>
+        <field name="context">{'search_default_this_month': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No hay comprobantes con IVA en el período seleccionado.</p>
+            <p>Esta vista combina facturas y notas de crédito de clientes y proveedores asentadas que usan documentos AFIP. Filtrá por período y agrupá por mes / tipo / partner para auditar el IVA antes de presentar el Libro IVA Digital.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_subdiario_iva_view"
+              name="Subdiario IVA — Detalle"
+              parent="menu_l10n_ar_root"
+              action="action_account_ar_vat_line"
+              sequence="15"/>
+
+</odoo>

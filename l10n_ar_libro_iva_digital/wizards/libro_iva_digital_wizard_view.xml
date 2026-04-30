@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <record id="view_libro_iva_digital_wizard_form" model="ir.ui.view">
+        <field name="name">l10n_ar.libro.iva.digital.wizard.form</field>
+        <field name="model">l10n_ar.libro.iva.digital.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Libro IVA Digital — RG 5616">
+                <sheet>
+                    <group invisible="state == 'done'">
+                        <field name="company_id" options="{'no_open': True}"/>
+                        <field name="date_from"/>
+                        <field name="date_to"/>
+                    </group>
+                    <group invisible="state != 'done'" string="Archivo generado">
+                        <field name="file_name" readonly="1"/>
+                        <field name="file_content"
+                               filename="file_name"
+                               readonly="1"
+                               widget="binary"/>
+                    </group>
+                    <field name="state" invisible="1"/>
+                </sheet>
+                <footer>
+                    <button name="action_generate"
+                            type="object"
+                            string="Generar ZIP"
+                            class="btn-primary"
+                            invisible="state == 'done'"/>
+                    <button string="Cerrar" class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_libro_iva_digital_wizard" model="ir.actions.act_window">
+        <field name="name">Libro IVA Digital (RG 5616)</field>
+        <field name="res_model">l10n_ar.libro.iva.digital.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- Menú: Contabilidad → Reportes → Argentina → Libro IVA Digital. -->
+    <menuitem id="menu_l10n_ar_root"
+              name="Argentina"
+              parent="account.menu_finance_reports"
+              sequence="100"/>
+    <menuitem id="menu_libro_iva_digital"
+              name="Libro IVA Digital (RG 5616)"
+              parent="menu_l10n_ar_root"
+              action="action_libro_iva_digital_wizard"
+              sequence="10"/>
+</odoo>

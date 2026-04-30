@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <!--
+        Botón "Consultar ARCA" (rebrand AFIP→ARCA 2025) en el form del partner.
+        Lo metemos pegado al VAT (campo de identificación) para que sea
+        obvio cuál es la relación. La vista upstream (l10n_ar) ya pone
+        identification_type + vat juntos; le agregamos el botón al lado.
+
+        Conserva el nombre interno `action_l10n_ar_padron_query` por
+        compatibilidad con scripts/customizaciones que ya lo usen.
+    -->
+    <record id="view_partner_form_l10n_ar_padron" model="ir.ui.view">
+        <field name="name">res.partner.form.l10n_ar_padron</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='vat']" position="after">
+                <button name="action_l10n_ar_padron_query"
+                        type="object"
+                        string="Consultar ARCA"
+                        class="btn-link"
+                        icon="fa-search"
+                        help="Sobreescribe razón social, responsabilidad IVA y domicilio fiscal con los datos del padrón ARCA (AFIP)"
+                        invisible="not vat"/>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

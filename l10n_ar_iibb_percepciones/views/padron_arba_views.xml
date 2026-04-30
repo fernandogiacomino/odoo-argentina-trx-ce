@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <!-- ================================================================
+         l10n_ar.padron.arba.import — listado y form de padrones cargados
+         ================================================================ -->
+    <record id="view_padron_arba_import_tree" model="ir.ui.view">
+        <field name="name">l10n_ar.padron.arba.import.tree</field>
+        <field name="model">l10n_ar.padron.arba.import</field>
+        <field name="arch" type="xml">
+            <list string="Padrones ARBA importados" default_order="date_from desc">
+                <field name="name"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="line_count"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-info="state == 'imported'"/>
+                <field name="company_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_padron_arba_import_form" model="ir.ui.view">
+        <field name="name">l10n_ar.padron.arba.import.form</field>
+        <field name="model">l10n_ar.padron.arba.import</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_activate"
+                            type="object"
+                            string="Activar como vigente"
+                            class="btn-primary"
+                            invisible="state == 'active'"/>
+                    <field name="state" widget="statusbar"
+                           statusbar_visible="draft,imported,active"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="ARBA YYYY-MM"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                        </group>
+                        <group>
+                            <field name="line_count" readonly="1"/>
+                            <field name="company_id" options="{'no_open': True}"/>
+                            <field name="file_name" readonly="1"/>
+                            <field name="file_data" filename="file_name" readonly="1"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Alícuotas" name="lines">
+                            <field name="line_ids" readonly="1">
+                                <list>
+                                    <field name="cuit"/>
+                                    <field name="aliquot_perception" digits="[5,2]"/>
+                                    <field name="aliquot_retention" digits="[5,2]"/>
+                                    <field name="date_from"/>
+                                    <field name="date_to"/>
+                                    <field name="tipo"/>
+                                    <field name="alta_baja"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_padron_arba_alicuota_search" model="ir.ui.view">
+        <field name="name">l10n_ar.padron.arba.alicuota.search</field>
+        <field name="model">l10n_ar.padron.arba.alicuota</field>
+        <field name="arch" type="xml">
+            <search string="Alícuotas IIBB ARBA">
+                <field name="cuit"/>
+                <field name="import_id"/>
+                <filter string="Padrón vigente" name="active_padron"
+                        domain="[('import_id.state', '=', 'active')]"/>
+                <filter string="Alto riesgo" name="high_risk"
+                        domain="[('tipo', '=', '1')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_padron_arba_import" model="ir.actions.act_window">
+        <field name="name">Padrones ARBA importados</field>
+        <field name="res_model">l10n_ar.padron.arba.import</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <record id="action_padron_arba_alicuota" model="ir.actions.act_window">
+        <field name="name">Alícuotas IIBB ARBA</field>
+        <field name="res_model">l10n_ar.padron.arba.alicuota</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'search_default_active_padron': 1}</field>
+    </record>
+
+    <!-- ================================================================
+         Wizard de subida
+         ================================================================ -->
+    <record id="view_padron_arba_upload_wizard_form" model="ir.ui.view">
+        <field name="name">l10n_ar.padron.arba.upload.wizard.form</field>
+        <field name="model">l10n_ar.padron.arba.upload.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Subir padrón ARBA">
+                <sheet>
+                    <group invisible="state == 'done'">
+                        <field name="company_id" options="{'no_open': True}"/>
+                        <field name="name"/>
+                        <field name="file_data" filename="file_name"/>
+                        <field name="file_name" invisible="1"/>
+                        <field name="activate"/>
+                    </group>
+                    <group invisible="state != 'done'" string="Resultado">
+                        <field name="import_id" readonly="1"/>
+                        <field name="line_count" readonly="1"/>
+                    </group>
+                    <field name="state" invisible="1"/>
+                </sheet>
+                <footer>
+                    <button name="action_import"
+                            type="object"
+                            string="Importar"
+                            class="btn-primary"
+                            invisible="state == 'done'"/>
+                    <button name="action_open_padron"
+                            type="object"
+                            string="Abrir padrón"
+                            class="btn-primary"
+                            invisible="state != 'done'"/>
+                    <button string="Cerrar" class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_padron_arba_upload_wizard" model="ir.actions.act_window">
+        <field name="name">Subir padrón ARBA</field>
+        <field name="res_model">l10n_ar.padron.arba.upload.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+
+    <!-- ================================================================
+         account.tax — campo nuevo en la vista
+         ================================================================ -->
+    <record id="view_account_tax_form_arba" model="ir.ui.view">
+        <field name="name">account.tax.form.arba</field>
+        <field name="model">account.tax</field>
+        <field name="inherit_id" ref="account.view_tax_form"/>
+        <field name="arch" type="xml">
+            <field name="tax_group_id" position="after">
+                <field name="l10n_ar_padron_jurisdiction"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ================================================================
+         res.partner — campos informativos en form
+         ================================================================ -->
+    <record id="view_partner_form_arba" model="ir.ui.view">
+        <field name="name">res.partner.form.arba</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <field name="vat" position="after">
+                <field name="l10n_ar_arba_in_padron"
+                       invisible="not vat or country_id and country_id.code != 'AR'"/>
+                <field name="l10n_ar_arba_aliquot_perception"
+                       digits="[5,2]"
+                       invisible="not l10n_ar_arba_in_padron"/>
+                <field name="l10n_ar_arba_aliquot_retention"
+                       digits="[5,2]"
+                       invisible="not l10n_ar_arba_in_padron"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ================================================================
+         account.move — banner con alícuota aplicada
+         ================================================================ -->
+    <record id="view_account_move_form_arba" model="ir.ui.view">
+        <field name="name">account.move.form.arba</field>
+        <field name="model">account.move</field>
+        <field name="inherit_id" ref="account.view_move_form"/>
+        <field name="arch" type="xml">
+            <field name="invoice_payment_term_id" position="after">
+                <field name="l10n_ar_arba_aliquot_applied"
+                       digits="[5,2]"
+                       string="IIBB BA aplicada (%)"
+                       invisible="l10n_ar_arba_aliquot_applied == 0"/>
+            </field>
+        </field>
+    </record>
+
+    <!-- ================================================================
+         Menú: Contabilidad → Configuración → Argentina → Padrón ARBA
+         ================================================================ -->
+    <menuitem id="menu_iibb_root"
+              name="Padrones IIBB"
+              parent="account.menu_finance_configuration"
+              sequence="200"/>
+    <menuitem id="menu_padron_arba_upload"
+              name="Subir padrón ARBA"
+              parent="menu_iibb_root"
+              action="action_padron_arba_upload_wizard"
+              sequence="10"/>
+    <menuitem id="menu_padron_arba_imports"
+              name="Padrones importados"
+              parent="menu_iibb_root"
+              action="action_padron_arba_import"
+              sequence="20"/>
+    <menuitem id="menu_padron_arba_alicuotas"
+              name="Alícuotas vigentes"
+              parent="menu_iibb_root"
+              action="action_padron_arba_alicuota"
+              sequence="30"/>
+</odoo>
