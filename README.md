@@ -1,66 +1,82 @@
-# odoo-argentina-trx-ce
+# l10n-ar-edi-community
 
-Localización Argentina (ARCA / AFIP) para **Odoo 19 Community**.
+Paquete de módulos para **Odoo 19 Community** que implementa la facturación
+electrónica argentina (ARCA / AFIP) sin depender de Odoo Enterprise.
 
-Mismo set de módulos que [trixocom/l10n_ar_trxinvoice_ce](https://github.com/trixocom/l10n_ar_trxinvoice_ce)
-pero con los addons **al primer nivel** del repo, listo para
-``addons_path`` directo sin subdirectorio.
-
-Licencia: **LGPL-3** (compatible con Odoo Community).
+Licencia: LGPL-3 (compatible con Odoo Community).
 Autor: Trixocom.
+Estado: en desarrollo — Fase 2 funcional en producción AFIP. Emitidas
+FA-A, FA-B, NC-A, NC-B, FA-A USD y FA-A con percepción IIBB contra el
+WSFEv1 de AFIP prod desde Odoo 19 Community. Padrón A13 funcional
+(autocomplete partner por CUIT). PDF con QR AFIP RG 4291. UI con
+botón "Enviar a ARCA" + tab AFIP en account.move.
 
-## Instalación
+## Alcance
 
-```bash
-# 1. Clonar como uno más en addons_path
-cd /opt
-git clone https://github.com/trixocom/odoo-argentina-trx-ce.git
+Cubrir los casos que en Enterprise resuelven `l10n_ar_edi`, `l10n_ar_reports` y
+`l10n_ar_reports_simple`, trabajando únicamente sobre la localización community
+oficial `l10n_ar` + el framework `certificate` del core Community 19.
 
-# 2. Agregar a odoo.conf
-addons_path = /usr/lib/python3/dist-packages/odoo/addons,/opt/odoo-argentina-trx-ce,...
-
-# 3. Update modules list y instalar
-odoo -d <db> --update-modules-list --stop-after-init
-odoo -d <db> -i l10n_ar_pos_edi --stop-after-init
-```
+**Condiciones IVA soportadas**: Responsable Inscripto, Monotributo, Exento /
+No alcanzado. Multi-empresa simultáneo.
 
 ## Módulos
 
-| Módulo | Función |
-|---|---|
-| `l10n_ar_edi_base` | Campos base AFIP (CUIT, POS, environment, CAE) |
-| `l10n_ar_afip_ws` | Cliente WSAA + WSFEv1 + WSFEX + Padrón A5/A13 (lib pura) |
-| `l10n_ar_edi` | `account.move` ↔ WSFEv1/WSFEX. Botón "Validar en ARCA", QR RG 4291 |
-| `l10n_ar_padron_query` | Autocomplete partner por CUIT (botón + onchange `vat`) |
-| `l10n_ar_libro_iva_digital` | Libro IVA Digital RG 5616 + Subdiario IVA + IVA Simple ARCA |
-| `l10n_ar_iva_simple` | 4 CSV portal ARCA "IVA Simple" |
-| `l10n_ar_iibb_percepciones` | Padrón ARBA + cálculo automático percepciones IIBB |
-| `l10n_ar_pos_edi` | POS + Factura Electrónica con QR + CAE en ticket |
-| `l10n_ar_caea` | (placeholder) CAEA + Comprobantes Clase M |
-| `l10n_ar_mis_comprobantes` | (placeholder) Import Mis Comprobantes AFIP |
+| Módulo | Responsabilidad | Fase |
+|---|---|---|
+| `l10n_ar_edi_base` | Campos base (entorno ARCA, CUIT, POS), helpers de validación, extensiones a `res.company` / `account.journal` / `account.move`. | 1 |
+| `l10n_ar_afip_ws` | Cliente Python puro de WSAA + WSFEv1 (y futuros WSFEX, WSBFE, WSCDC). Aislado de Odoo para testeo unitario. | 1 |
+| `l10n_ar_edi` | Integración entre `account.move` y el cliente WS. Botones, estados de autorización, impresión con CAE + QR AFIP. | 1 |
+| `l10n_ar_padron_query` | Consulta WS Padrón AFIP A13 — botón + onchange `vat` para autocompletar partner por CUIT. | 2 |
+| `l10n_ar_libro_iva_digital` | Libro IVA Digital (RG 5616) con export de los 5 TXT oficiales. | 2 |
+| `l10n_ar_citi` | CITI legacy (Ventas/Compras). | 2 |
+| `l10n_ar_mis_comprobantes` | Import y cotejo contra el portal Mis Comprobantes de AFIP. | 2 |
+| `l10n_ar_iibb_percepciones` | Percepciones y retenciones IIBB provinciales (ARBA, AGIP, Santa Fe, Córdoba). | 3 |
+| `l10n_ar_caea` | CAEA (Código de Autorización Electrónico Anticipado) y comprobantes clase M. | 4 |
 
-## Estado actual
+## Dependencias externas
 
-- Fase 1 (emisión MVP A/B/C) ✅ funcional en producción.
-- Fase 2 (Servicios, Tributos, USD, Padrón, QR, UI) ✅
-- Fase 3 (Reportes: Libro IVA Digital + Subdiario + IVA Simple) ✅
-- Fase 4 (WSFEX exportación) ✅ funcional · WSBFE/WSMTXCA/CAEA pendientes
-- Fase 5 (Padrón ARBA) ✅ · AGIP/Santa Fe/Córdoba pendientes
+- Python: `zeep` (para SOAP de AFIP).
+- Módulos Odoo: `l10n_ar`, `certificate` (ambos community oficial).
+- OPCIONAL para Fase 2 UX: [OCA account-financial-reporting 19.0](https://github.com/OCA/account-financial-reporting/tree/19.0).
+  Solo lo usa `l10n_ar_libro_iva_digital` para vistas interactivas. El export
+  TXT es independiente y funciona sin OCA.
 
-Validado contra AFIP **producción** con CUIT 20219464100.
+## Cómo desarrollar
+
+```bash
+# Levantar stack de desarrollo (Odoo 19 community + PostgreSQL)
+cd docker
+cp odoo.conf.sample odoo.conf
+docker compose -f docker-compose.dev.yml up -d
+
+# Instalar módulos en la base de datos de pruebas
+docker compose -f docker-compose.dev.yml exec odoo \
+    odoo -d dev --init l10n_ar_edi_base,l10n_ar_afip_ws,l10n_ar_edi --stop-after-init
+```
 
 ## Documentación
 
-La documentación completa, runbooks, smokes y HANDOFF están en el repo
-hermano [trixocom/l10n_ar_trxinvoice_ce](https://github.com/trixocom/l10n_ar_trxinvoice_ce)
-junto con `docker/`, `scripts/` y `docs/`.
+> **Para devs (humanos o LLMs) que recién entran al proyecto**:
+> empezá por [`docs/HANDOFF.md`](docs/HANDOFF.md). Tiene el estado completo,
+> aprendizajes técnicos no obvios y roadmap. Si vas a usar Claude/Cowork,
+> el archivo [`CLAUDE.md`](CLAUDE.md) en la raíz del repo se carga
+> automáticamente.
 
-Este repo (`odoo-argentina-trx-ce`) es solo el **payload de addons**
-para deployments productivos donde no se quiere clonar el árbol
-completo del proyecto.
+- [HANDOFF.md](docs/HANDOFF.md) — **transferencia completa del proyecto**
+- [Fases del proyecto](docs/fases.md) (estado actualizado por fase)
+- [Arquitectura de módulos](docs/arquitectura.md)
+- [Mapa Enterprise → Community](docs/mapa_cobertura.md)
+- [Runbook certificado homologación WSAA](docs/runbook_certificado_homologacion.md)
+- [Runbook deploy a demo19](docs/runbook_deploy_demo19.md)
 
-## Sincronización con el repo padre
+## Testing contra AFIP
 
-Los addons de este repo se sincronizan desde
-`l10n_ar_trxinvoice_ce/addons/*`. **No editar acá** — editar en el
-repo padre y resincronizar.
+Todos los tests de integración contra AFIP se ejecutan contra el entorno de
+homologación (`wsaahomo.afip.gov.ar`, `wswhomo.afip.gov.ar`). El entorno de
+producción se usa solo desde una base productiva con el certificado de
+producción del cliente, y nunca desde CI.
+
+## Contribuciones
+
+Este repositorio es privado. Los pull requests se revisan internamente Trixocom.
