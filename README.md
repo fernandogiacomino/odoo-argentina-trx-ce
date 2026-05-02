@@ -1,82 +1,115 @@
-# l10n-ar-edi-community
+# odoo-argentina-trx-ce
 
-Paquete de módulos para **Odoo 19 Community** que implementa la facturación
-electrónica argentina (ARCA / AFIP) sin depender de Odoo Enterprise.
+Localización Argentina (ARCA / AFIP) para **Odoo 19 Community** —
+módulos al primer nivel del repo, listos para `addons_path` directo.
 
-Licencia: LGPL-3 (compatible con Odoo Community).
-Autor: Trixocom.
-Estado: en desarrollo — Fase 2 funcional en producción AFIP. Emitidas
-FA-A, FA-B, NC-A, NC-B, FA-A USD y FA-A con percepción IIBB contra el
-WSFEv1 de AFIP prod desde Odoo 19 Community. Padrón A13 funcional
-(autocomplete partner por CUIT). PDF con QR AFIP RG 4291. UI con
-botón "Enviar a ARCA" + tab AFIP en account.move.
+Licencia: **LGPL-3** · Autor: **Trixocom**
 
-## Alcance
+> **Espejo de payload** del repo padre
+> [`trixocom/l10n_ar_trxinvoice_ce`](https://github.com/trixocom/l10n_ar_trxinvoice_ce)
+> que tiene `docs/`, `scripts/`, `docker/`, runbooks, smokes y HANDOFF
+> completo. Editar siempre en el padre — este repo se sincroniza después.
 
-Cubrir los casos que en Enterprise resuelven `l10n_ar_edi`, `l10n_ar_reports` y
-`l10n_ar_reports_simple`, trabajando únicamente sobre la localización community
-oficial `l10n_ar` + el framework `certificate` del core Community 19.
+## Estado
 
-**Condiciones IVA soportadas**: Responsable Inscripto, Monotributo, Exento /
-No alcanzado. Multi-empresa simultáneo.
+- ✅ Fase 1 — emisión MVP A/B/C en producción AFIP
+- ✅ Fase 2 — Servicios, Tributos (IIBB), USD/MonCotiz, Padrón A5, QR RG 4291
+- ✅ Fase 3 — Reportes: Libro IVA Digital RG 5616 + Subdiario IVA + IVA Simple
+- 🟡 Fase 4 — WSFEX (Factura E exportación) ✅ · WSBFE/WSMTXCA/CAEA pendientes
+- 🟡 Fase 5 — Padrón ARBA ✅ · AGIP/Santa Fe/Córdoba pendientes
+
+Validado contra AFIP **producción** (CUIT 20219464100). Emitidos: FA-A,
+FA-B, NC-A, NC-B, FA-A USD, FA-A con percepción IIBB ARBA, FA-E
+exportación, FA-A desde POS.
 
 ## Módulos
 
-| Módulo | Responsabilidad | Fase |
+### Núcleo de emisión
+
+| Módulo | Resumen | Depende |
 |---|---|---|
-| `l10n_ar_edi_base` | Campos base (entorno ARCA, CUIT, POS), helpers de validación, extensiones a `res.company` / `account.journal` / `account.move`. | 1 |
-| `l10n_ar_afip_ws` | Cliente Python puro de WSAA + WSFEv1 (y futuros WSFEX, WSBFE, WSCDC). Aislado de Odoo para testeo unitario. | 1 |
-| `l10n_ar_edi` | Integración entre `account.move` y el cliente WS. Botones, estados de autorización, impresión con CAE + QR AFIP. | 1 |
-| `l10n_ar_padron_query` | Consulta WS Padrón AFIP A13 — botón + onchange `vat` para autocompletar partner por CUIT. | 2 |
-| `l10n_ar_libro_iva_digital` | Libro IVA Digital (RG 5616) con export de los 5 TXT oficiales. | 2 |
-| `l10n_ar_citi` | CITI legacy (Ventas/Compras). | 2 |
-| `l10n_ar_mis_comprobantes` | Import y cotejo contra el portal Mis Comprobantes de AFIP. | 2 |
-| `l10n_ar_iibb_percepciones` | Percepciones y retenciones IIBB provinciales (ARBA, AGIP, Santa Fe, Córdoba). | 3 |
-| `l10n_ar_caea` | CAEA (Código de Autorización Electrónico Anticipado) y comprobantes clase M. | 4 |
+| `l10n_ar_edi_base` | Campos AFIP base (CUIT, POS, environment, CAE, QR). Helpers comunes. | `l10n_ar`, `certificate` |
+| `l10n_ar_afip_ws` | Cliente SOAP (zeep) puro para WSAA, WSFEv1, WSFEXv1, Padrón A5/A13. Lib pura sin imports de `odoo` para testabilidad. | `l10n_ar_edi_base` |
+| `l10n_ar_edi` | Pegamento `account.move` ↔ WSFEv1/WSFEX. Override de `_post()` que dispara CAE. Botón "Validar en ARCA". Tab AFIP con CAE/vto/QR/XML req-resp. PDF con QR RG 4291. Dispatcher por journal POS system (`RLI_RLM` → wsfe, `FEERCEL/FEERCELP` → wsfex). | `l10n_ar_edi_base`, `l10n_ar_afip_ws` |
 
-## Dependencias externas
+### UX y autocompletado
 
-- Python: `zeep` (para SOAP de AFIP).
-- Módulos Odoo: `l10n_ar`, `certificate` (ambos community oficial).
-- OPCIONAL para Fase 2 UX: [OCA account-financial-reporting 19.0](https://github.com/OCA/account-financial-reporting/tree/19.0).
-  Solo lo usa `l10n_ar_libro_iva_digital` para vistas interactivas. El export
-  TXT es independiente y funciona sin OCA.
+| Módulo | Resumen | Depende |
+|---|---|---|
+| `l10n_ar_padron_query` | Botón "Consultar ARCA" + onchange `vat` → autocompleta razón social, condición IVA, domicilio fiscal desde el padrón A5 (`personaServiceA5/getPersona_v2`). Sanitiza CUIT con guiones automáticamente. Sobreescribe datos del partner cuando se invoca explícitamente. | `l10n_ar_edi_base`, `l10n_ar_afip_ws` |
 
-## Cómo desarrollar
+### Reportes fiscales
+
+| Módulo | Resumen | Depende |
+|---|---|---|
+| `l10n_ar_libro_iva_digital` | **Libro IVA Digital RG 5616** — wizard que genera ZIP con los 5 TXT oficiales (Latín-1 + CRLF, longitudes fijas). **Subdiario IVA** — wizard PDF (QWeb landscape A4) + XLSX (openpyxl) + vista interactiva (list / pivot / graph) sobre la vista SQL `account.ar.vat.line` (1 row pre-agregada por move). | `l10n_ar_edi`, `openpyxl` |
+| `l10n_ar_iva_simple` | **4 CSV portal ARCA** (`DEBITO`, `REST_DEBITO`, `CREDITO`, `REST_CREDITO`) para régimen IVA Simple (Monotributo/PyME). Encoding latin-1 + `;` + decimales con coma. Réplica community de enterprise `l10n_ar_reports_simple`. | `l10n_ar_libro_iva_digital` |
+
+### Padrones provinciales
+
+| Módulo | Resumen | Depende |
+|---|---|---|
+| `l10n_ar_iibb_percepciones` | **Padrón ARBA** (Buenos Aires) — wizard upload TXT/ZIP con bulk_insert SQL (~100k filas en <2s). Auto-aplicación al `_onchange_partner_id`/`invoice_date`: busca alícuota en padrón vigente y aplica/quita el tax automáticamente. Tax dinámico clonado del template. Tax llega al WSFE como `Tributo Id=7`. AGIP/Santa Fe/Córdoba pendientes. | `l10n_ar_edi_base` |
+
+### Punto de venta
+
+| Módulo | Resumen | Depende |
+|---|---|---|
+| `l10n_ar_pos_edi` | **POS + Factura Electrónica argentina**. El ticket POS muestra QR RG 4291 + CAE + vto + nro de comprobante cuando la venta se factura. Suprime el bloque "¿Necesita factura?" del portal POS y el download automático del PDF post-pago en companies AR (el ticket cumple solo). Override `pos.order._prepare_invoice_vals` para vincular refunds POS con la factura original (necesario para `CbtesAsoc` en NC). RPC `pos.order.get_l10n_ar_invoice_data` que trae los datos AFIP on-demand al frontend OWL. | `point_of_sale`, `l10n_ar_edi` |
+
+### Placeholders (próximas fases)
+
+| Módulo | Resumen | Estado |
+|---|---|---|
+| `l10n_ar_caea` | CAEA (Código de Autorización Electrónico Anticipado) + comprobantes clase M. | ⚪ scaffold pendiente |
+| `l10n_ar_mis_comprobantes` | Import XLS portal AFIP "Mis Comprobantes" + cotejo contra `account.ar.vat.line` (vista SQL canónica) + reporte diferencias. | ⚪ scaffold pendiente |
+
+## Instalación
 
 ```bash
-# Levantar stack de desarrollo (Odoo 19 community + PostgreSQL)
-cd docker
-cp odoo.conf.sample odoo.conf
-docker compose -f docker-compose.dev.yml up -d
+# 1. Clonar como un addons_path más
+cd /opt
+git clone https://github.com/trixocom/odoo-argentina-trx-ce.git
 
-# Instalar módulos en la base de datos de pruebas
-docker compose -f docker-compose.dev.yml exec odoo \
-    odoo -d dev --init l10n_ar_edi_base,l10n_ar_afip_ws,l10n_ar_edi --stop-after-init
+# 2. Agregar a /etc/odoo/odoo.conf
+addons_path = /usr/lib/python3/dist-packages/odoo/addons,/opt/odoo-argentina-trx-ce
+
+# 3. Update modules list e instalar
+docker exec <odoo> odoo -d <db> -i l10n_ar_pos_edi --stop-after-init
 ```
 
-## Documentación
+Las dependencias se resuelven en cascada — instalar `l10n_ar_pos_edi`
+trae automáticamente `l10n_ar_edi`, `l10n_ar_edi_base`,
+`l10n_ar_afip_ws`, `l10n_ar`, `certificate`, `point_of_sale` y `account`.
 
-> **Para devs (humanos o LLMs) que recién entran al proyecto**:
-> empezá por [`docs/HANDOFF.md`](docs/HANDOFF.md). Tiene el estado completo,
-> aprendizajes técnicos no obvios y roadmap. Si vas a usar Claude/Cowork,
-> el archivo [`CLAUDE.md`](CLAUDE.md) en la raíz del repo se carga
-> automáticamente.
+## Pre-condiciones del server
 
-- [HANDOFF.md](docs/HANDOFF.md) — **transferencia completa del proyecto**
-- [Fases del proyecto](docs/fases.md) (estado actualizado por fase)
-- [Arquitectura de módulos](docs/arquitectura.md)
-- [Mapa Enterprise → Community](docs/mapa_cobertura.md)
-- [Runbook certificado homologación WSAA](docs/runbook_certificado_homologacion.md)
-- [Runbook deploy a demo19](docs/runbook_deploy_demo19.md)
+- **Odoo 19 Community** (no enterprise).
+- Localización argentina oficial `l10n_ar` (community, ya viene con Odoo).
+- Python: `zeep`, `cryptography`, `openpyxl` (vienen via pip o ya están en
+  los containers de Odoo).
+- Cert AFIP cargado en la company (`certificate.certificate` +
+  `certificate.key`) — ver runbook de homologación en el repo padre.
 
-## Testing contra AFIP
+## Compatibilidad
 
-Todos los tests de integración contra AFIP se ejecutan contra el entorno de
-homologación (`wsaahomo.afip.gov.ar`, `wswhomo.afip.gov.ar`). El entorno de
-producción se usa solo desde una base productiva con el certificado de
-producción del cliente, y nunca desde CI.
+- ✅ **`odoomates/odooapps` 19.0** — auditado, conviven sin conflictos.
+  Único punto de superposición (`om_account_asset.action_post`) es
+  ortogonal porque cascadea via `super()`.
+- ⚠️ **`way4tech_enterprise_theme`** — puede requerir parche manual SQL
+  para agregar columna `homemenu_config` al `res.users.settings` si la
+  versión instalada del theme no la creó por upgrade. Ver HANDOFF
+  sección 4 en el repo padre.
 
-## Contribuciones
+## Documentación adicional
 
-Este repositorio es privado. Los pull requests se revisan internamente Trixocom.
+Toda la documentación de proyecto, runbooks de cert AFIP, deploy en
+demo19/test19, smokes contra AFIP prod, HANDOFF con aprendizajes
+técnicos no obvios (gotchas de WS AFIP, Odoo 19 views, etc.), y
+roadmap por fases está en
+[`trixocom/l10n_ar_trxinvoice_ce`](https://github.com/trixocom/l10n_ar_trxinvoice_ce/tree/main/docs).
+
+## Contacto
+
+- **Hector Quiroz Mendiburu** — hectorquiroz@trixocom.com
+- Empresa: Trixocom
