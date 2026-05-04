@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <record id="l10n_ar_csr_wizard_view_form" model="ir.ui.view">
+        <field name="name">l10n_ar.csr.wizard.form</field>
+        <field name="model">l10n_ar.csr.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Solicitud de certificado AFIP">
+                <field name="state" invisible="1"/>
+
+                <!-- Estado: input — pide datos -->
+                <group invisible="state != 'input'">
+                    <p>
+                        Generá una <b>solicitud de certificado (CSR)</b> y una
+                        <b>clave privada (KEY)</b> para subir al portal AFIP
+                        "Administración de Certificados Digitales". Se usa
+                        tanto para certificados nuevos como para renovación.
+                    </p>
+                    <group>
+                        <field name="company_id"/>
+                        <field name="common_name"/>
+                        <field name="organization"/>
+                        <field name="cuit"/>
+                        <field name="country"/>
+                    </group>
+                </group>
+
+                <!-- Estado: done — descarga CSR + key (opcional) -->
+                <group invisible="state != 'done'">
+                    <p>
+                        Listo. Descargá el archivo <b>.csr</b> y subilo
+                        al portal AFIP en
+                        <i>Administración de Certificados Digitales</i> →
+                        <i>Agregar alias</i> →
+                        <i>Generar certificado de prueba/producción</i>.
+                    </p>
+                    <group>
+                        <field name="csr_data"
+                               filename="csr_filename"
+                               readonly="1"/>
+                        <field name="csr_filename" invisible="1"/>
+                    </group>
+
+                    <separator string="Clave privada"/>
+                    <p class="text-muted">
+                        Odoo ya guardó la clave privada como
+                        <field name="key_record_id" readonly="1" nolabel="1" class="oe_inline"/>
+                        en <i>Configuración → Certificados → Claves</i>.
+                        Cuando AFIP te firme el .crt, asocialo a esta
+                        clave al cargarlo. La descarga de abajo es solo
+                        un <b>backup externo opcional</b>.
+                    </p>
+                    <group>
+                        <field name="private_key_data"
+                               filename="private_key_filename"
+                               readonly="1"/>
+                        <field name="private_key_filename" invisible="1"/>
+                    </group>
+                </group>
+
+                <footer>
+                    <button name="action_generate"
+                            type="object"
+                            string="Generar"
+                            class="btn-primary"
+                            invisible="state != 'input'"/>
+                    <button string="Cerrar"
+                            class="btn-secondary"
+                            special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

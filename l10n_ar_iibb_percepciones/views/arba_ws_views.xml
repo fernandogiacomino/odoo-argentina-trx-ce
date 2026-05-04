@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <record id="view_l10n_ar_arba_ws_log_list" model="ir.ui.view">
+        <field name="name">l10n_ar.arba.ws.log.list</field>
+        <field name="model">l10n_ar.arba.ws.log</field>
+        <field name="arch" type="xml">
+            <list decoration-success="success == True"
+                  decoration-danger="success == False and is_fatal == True"
+                  decoration-warning="success == False and is_fatal == False">
+                <field name="date"/>
+                <field name="fecha_desde"/>
+                <field name="fecha_hasta"/>
+                <field name="success" widget="boolean_toggle" readonly="1"/>
+                <field name="attempt"/>
+                <field name="triggered_by"/>
+                <field name="error_code"/>
+                <field name="error_msg"/>
+                <field name="is_fatal"/>
+                <field name="file_size"/>
+                <field name="import_id"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_l10n_ar_arba_ws_log_form" model="ir.ui.view">
+        <field name="name">l10n_ar.arba.ws.log.form</field>
+        <field name="model">l10n_ar.arba.ws.log</field>
+        <field name="arch" type="xml">
+            <form create="false" edit="false">
+                <sheet>
+                    <h2><field name="display_name" readonly="1"/></h2>
+                    <group>
+                        <field name="date"/>
+                        <field name="success"/>
+                        <field name="attempt"/>
+                        <field name="triggered_by"/>
+                        <field name="fecha_desde"/>
+                        <field name="fecha_hasta"/>
+                        <field name="file_size"/>
+                        <field name="import_id"/>
+                    </group>
+                    <group string="Error" invisible="success">
+                        <field name="error_code"/>
+                        <field name="error_type"/>
+                        <field name="is_fatal"/>
+                        <field name="error_msg" widget="text"/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_l10n_ar_arba_ws_log" model="ir.actions.act_window">
+        <field name="name">Log ARBA WS</field>
+        <field name="res_model">l10n_ar.arba.ws.log</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_l10n_ar_arba_ws_log"
+              name="Log ARBA WS"
+              parent="l10n_ar_afip_ws.menu_l10n_ar_ws_logs_root"
+              action="action_l10n_ar_arba_ws_log"
+              sequence="20"/>
+
+    <!-- ============ Settings UI ============ -->
+    <record id="res_config_settings_view_form_arba_ws" model="ir.ui.view">
+        <field name="name">res.config.settings.form.arba.ws</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="l10n_ar_edi.res_config_settings_view_form_l10n_ar_edi"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='l10n_ar_edi_block']" position="inside">
+                <setting string="ARBA — Descarga automática del padrón IIBB"
+                         help="Conexión al web service del DFE de ARBA para bajar el padrón mensual de alícuotas IIBB sin intervención manual.">
+                    <field name="l10n_ar_arba_ws_enabled"/>
+                    <div class="content-group" invisible="not l10n_ar_arba_ws_enabled">
+                        <div class="text-muted mt8" style="font-size: 12px;">
+                            ✅ Cron mensual 1° del mes 09:00 baja el padrón nuevo.<br/>
+                            ✅ Si falla, reintenta cada hora durante los días 1-5.<br/>
+                            ✅ Después de 3 fallos consecutivos en 4h, deja warning visible.
+                        </div>
+                        <div class="row mt16">
+                            <label for="l10n_ar_arba_ws_user" class="col-lg-4 o_light_label" string="Usuario DFE"/>
+                            <field name="l10n_ar_arba_ws_user"/>
+                        </div>
+                        <div class="row">
+                            <label for="l10n_ar_arba_ws_password" class="col-lg-4 o_light_label" string="Password"/>
+                            <field name="l10n_ar_arba_ws_password" password="True"/>
+                        </div>
+                        <div class="row">
+                            <label for="l10n_ar_arba_ws_environment" class="col-lg-4 o_light_label" string="Entorno"/>
+                            <field name="l10n_ar_arba_ws_environment"/>
+                        </div>
+                        <div class="row mt8" invisible="not l10n_ar_arba_ws_last_run">
+                            <label for="l10n_ar_arba_ws_last_run" class="col-lg-4 o_light_label" string="Último intento"/>
+                            <field name="l10n_ar_arba_ws_last_run" readonly="1"/>
+                        </div>
+                        <div class="row" invisible="not l10n_ar_arba_ws_last_status">
+                            <label for="l10n_ar_arba_ws_last_status" class="col-lg-4 o_light_label" string="Estado"/>
+                            <field name="l10n_ar_arba_ws_last_status" widget="badge"
+                                   decoration-success="l10n_ar_arba_ws_last_status == 'success'"
+                                   decoration-warning="l10n_ar_arba_ws_last_status == 'retrying'"
+                                   decoration-danger="l10n_ar_arba_ws_last_status == 'failed'"/>
+                        </div>
+                        <div class="alert alert-danger mt8"
+                             invisible="l10n_ar_arba_ws_last_status != 'failed'"
+                             role="alert">
+                            <strong>⚠️ ARBA WS falló:</strong>
+                            <field name="l10n_ar_arba_ws_last_error" readonly="1" nolabel="1"/>
+                        </div>
+                        <div class="mt16">
+                            <button name="action_l10n_ar_arba_ws_test"
+                                    type="object"
+                                    string="Probar conexión / descargar mes actual"
+                                    class="oe_link oe_inline"
+                                    icon="oi-arrow-right"/>
+                        </div>
+                        <div class="mt8">
+                            <button name="action_l10n_ar_view_arba_ws_log"
+                                    type="object"
+                                    string="Ver log auditoría"
+                                    class="oe_link oe_inline"
+                                    icon="oi-arrow-right"/>
+                        </div>
+                    </div>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

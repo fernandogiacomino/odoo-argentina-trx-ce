@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <record id="res_config_settings_view_form_mc" model="ir.ui.view">
+        <field name="name">res.config.settings.form.mis_comprobantes</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="l10n_ar_edi.res_config_settings_view_form_l10n_ar_edi"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='l10n_ar_edi_block']" position="inside">
+                <setting string="Mis Comprobantes — Auto-creación"
+                         company_dependent="1"
+                         help="Defaults para crear facturas IN automáticamente desde un batch importado del portal ARCA.">
+                    <div class="content-group">
+                        <div class="row mt16">
+                            <label for="l10n_ar_mc_default_product_id"
+                                   string="Producto genérico"
+                                   class="o_light_label col-lg-4"/>
+                            <field name="l10n_ar_mc_default_product_id"
+                                   options="{'no_create_edit': True}"/>
+                        </div>
+                        <div class="row mt8">
+                            <label for="l10n_ar_mc_default_purchase_journal_id"
+                                   string="Diario compras"
+                                   class="o_light_label col-lg-4"/>
+                            <field name="l10n_ar_mc_default_purchase_journal_id"
+                                   options="{'no_create_edit': True}"/>
+                        </div>
+                    </div>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <!-- Cron mensual: 1° del mes 09:00. Solo companies con switch ON. -->
+    <record id="cron_arba_ws_download" model="ir.cron">
+        <field name="name">ARBA WS — Descarga padrón mensual</field>
+        <field name="model_id" ref="model_l10n_ar_padron_arba_import"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_arba_ws_download()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">months</field>
+        <field name="active" eval="True"/>
+        <field name="user_id" ref="base.user_root"/>
+    </record>
+
+    <!-- Cron horario: días 1-5 del mes, retry si last_status='retrying'. -->
+    <record id="cron_arba_ws_retry" model="ir.cron">
+        <field name="name">ARBA WS — Reintento horario (días 1-5)</field>
+        <field name="model_id" ref="model_l10n_ar_padron_arba_import"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_arba_ws_retry()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">hours</field>
+        <field name="active" eval="True"/>
+        <field name="user_id" ref="base.user_root"/>
+    </record>
+</odoo>

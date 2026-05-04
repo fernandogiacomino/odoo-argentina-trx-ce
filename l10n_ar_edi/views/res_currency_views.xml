@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<!--
+    Override del display de res.currency.rate para limitar la precisión
+    visible:
+
+    * `rate` (Unidad por ARS): 8 decimales máximo (en vez de 12)
+    * `inverse_company_rate` (ARS por unidad): 2 decimales
+
+    Esto solo cambia la display — el storage sigue siendo Float full
+    precision. Las facturas, conversions, etc. usan el rate completo
+    como antes; solo la pantalla muestra valores limpios.
+
+    Razón: float math hace que 1 / (1 / 1425) ≈ 1424.999999999..001,
+    lo que se ve sucio en pantalla aunque sea matemáticamente correcto.
+-->
+<odoo>
+    <record id="view_currency_rate_list_l10n_ar" model="ir.ui.view">
+        <field name="name">res.currency.rate.list.l10n_ar</field>
+        <field name="model">res.currency.rate</field>
+        <field name="inherit_id" ref="base.view_currency_rate_tree"/>
+        <field name="arch" type="xml">
+            <field name="inverse_company_rate" position="attributes">
+                <attribute name="digits">[12,0]</attribute>
+            </field>
+            <field name="rate" position="attributes">
+                <attribute name="digits">[12,8]</attribute>
+            </field>
+        </field>
+    </record>
+
+    <record id="view_currency_rate_form_l10n_ar" model="ir.ui.view">
+        <field name="name">res.currency.rate.form.l10n_ar</field>
+        <field name="model">res.currency.rate</field>
+        <field name="inherit_id" ref="base.view_currency_rate_form"/>
+        <field name="arch" type="xml">
+            <field name="inverse_company_rate" position="attributes">
+                <attribute name="digits">[12,0]</attribute>
+            </field>
+            <field name="rate" position="attributes">
+                <attribute name="digits">[12,8]</attribute>
+            </field>
+        </field>
+    </record>
+</odoo>

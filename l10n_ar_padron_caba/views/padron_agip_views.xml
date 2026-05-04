@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <!-- ============ Import (batch) ============ -->
+    <record id="view_padron_agip_import_list" model="ir.ui.view">
+        <field name="name">l10n_ar.padron.agip.import.list</field>
+        <field name="model">l10n_ar.padron.agip.import</field>
+        <field name="arch" type="xml">
+            <list decoration-success="state == 'active'"
+                  decoration-info="state == 'imported'"
+                  decoration-muted="state == 'draft'">
+                <field name="display_name" string="Padrón"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="alicuota_count"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-info="state == 'imported'"
+                       decoration-muted="state == 'draft'"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_padron_agip_import_form" model="ir.ui.view">
+        <field name="name">l10n_ar.padron.agip.import.form</field>
+        <field name="model">l10n_ar.padron.agip.import</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <button name="action_parse_file" type="object"
+                            string="Importar archivo" class="btn-primary"
+                            invisible="state != 'draft' or not file_data"/>
+                    <button name="action_activate" type="object"
+                            string="Activar este padrón" class="btn-warning"
+                            invisible="state != 'imported'"/>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_alicuotas" type="object"
+                                class="oe_stat_button" icon="fa-list">
+                            <field name="alicuota_count" widget="statinfo" string="Alícuotas"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                        <group>
+                            <field name="file_data" filename="file_name"/>
+                            <field name="file_name" invisible="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <!-- ============ Alicuotas ============ -->
+    <record id="view_padron_agip_alicuota_list" model="ir.ui.view">
+        <field name="name">l10n_ar.padron.agip.alicuota.list</field>
+        <field name="model">l10n_ar.padron.agip.alicuota</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="cuit"/>
+                <field name="name"/>
+                <field name="tipo"/>
+                <field name="alta_baja"/>
+                <field name="aliquot_perception" sum="Perc. total"/>
+                <field name="aliquot_retention" sum="Ret. total"/>
+                <field name="grupo_perception"/>
+                <field name="grupo_retention"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="import_id"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_padron_agip_alicuota_search" model="ir.ui.view">
+        <field name="name">l10n_ar.padron.agip.alicuota.search</field>
+        <field name="model">l10n_ar.padron.agip.alicuota</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="cuit"/>
+                <field name="name"/>
+                <field name="import_id"/>
+                <filter string="Local" name="local" domain="[('tipo','=','L')]"/>
+                <filter string="Convenio" name="convenio" domain="[('tipo','=','C')]"/>
+                <filter string="Con percepción" name="con_perc" domain="[('aliquot_perception','>',0)]"/>
+                <filter string="Con retención" name="con_ret" domain="[('aliquot_retention','>',0)]"/>
+                <separator/>
+                <filter string="Padrón vigente" name="vigente" domain="[('import_id.state','=','active')]"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_padron_agip_import" model="ir.actions.act_window">
+        <field name="name">Padrón AGIP CABA</field>
+        <field name="res_model">l10n_ar.padron.agip.import</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Importar el primer padrón AGIP</p>
+            <p>Descargá el archivo del portal AGIP y subilo desde el botón "Subir padrón".</p>
+        </field>
+    </record>
+
+    <record id="action_padron_agip_alicuota" model="ir.actions.act_window">
+        <field name="name">Alícuotas AGIP CABA</field>
+        <field name="res_model">l10n_ar.padron.agip.alicuota</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_padron_agip_alicuota_search"/>
+    </record>
+
+    <!-- ============ Menus ============ -->
+    <menuitem id="menu_padron_agip_root"
+              name="Padrón AGIP CABA"
+              parent="account.menu_finance_configuration"
+              sequence="180"/>
+
+    <menuitem id="menu_padron_agip_import"
+              name="Padrones importados"
+              parent="menu_padron_agip_root"
+              action="action_padron_agip_import"
+              sequence="10"/>
+
+    <menuitem id="menu_padron_agip_upload"
+              name="Subir padrón nuevo"
+              parent="menu_padron_agip_root"
+              action="action_padron_agip_upload_wizard"
+              sequence="20"/>
+
+    <menuitem id="menu_padron_agip_alicuota"
+              name="Alícuotas vigentes"
+              parent="menu_padron_agip_root"
+              action="action_padron_agip_alicuota"
+              sequence="30"/>
+</odoo>

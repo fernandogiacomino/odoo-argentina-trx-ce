@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <record id="res_config_settings_view_form_caea" model="ir.ui.view">
+        <field name="name">res.config.settings.form.caea</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="l10n_ar_edi.res_config_settings_view_form_l10n_ar_edi"/>
+        <field name="arch" type="xml">
+            <xpath expr="//block[@name='l10n_ar_edi_block']" position="inside">
+                <setting string="CAEA — Régimen de contingencia"
+                         help="Activá esto SOLO si tu empresa está adherida al régimen CAEA (RG 2926) en el portal AFIP. Cuando está activo, los crones de CAEA corren automáticos. Si no estás adherido, dejalo desactivado para evitar errores.">
+                    <field name="l10n_ar_caea_enabled"/>
+                    <div class="content-group" invisible="not l10n_ar_caea_enabled">
+                        <div class="text-muted mt8" style="font-size: 12px;">
+                            ✅ Cron diario 09:00 solicita el CAEA de la próxima quincena cuando entra ventana (días 11-15 ó 27-fin).<br/>
+                            ✅ Cron diario 03:00 rinde a AFIP comprobantes pendientes y CAEA sin movimiento.<br/>
+                            ✅ Si WSFEv1 da timeout, el sistema cae a CAEA automáticamente.
+                        </div>
+                        <div class="mt8">
+                            <button name="action_l10n_ar_request_caea"
+                                    type="object"
+                                    string="Solicitar CAEA próxima quincena (manual)"
+                                    class="oe_link oe_inline"
+                                    icon="oi-arrow-right"/>
+                        </div>
+                        <div class="mt8">
+                            <button name="action_l10n_ar_view_caea"
+                                    type="object"
+                                    string="Ver CAEAs solicitados"
+                                    class="oe_link oe_inline"
+                                    icon="oi-arrow-right"/>
+                        </div>
+                        <div class="mt8">
+                            <button name="action_l10n_ar_view_caea_log"
+                                    type="object"
+                                    string="Ver log auditoría AFIP"
+                                    class="oe_link oe_inline"
+                                    icon="oi-arrow-right"/>
+                        </div>
+                    </div>
+                </setting>
+            </xpath>
+        </field>
+    </record>
+</odoo>

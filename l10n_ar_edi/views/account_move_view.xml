@@ -61,6 +61,7 @@
             -->
             <xpath expr="//header" position="inside">
                 <field name="l10n_ar_is_electronic_invoice" invisible="1"/>
+                <field name="l10n_ar_supplier_validation_available" invisible="1"/>
 
                 <button name="action_l10n_ar_validar_arca"
                         type="object"
@@ -82,14 +83,24 @@
                                    or not l10n_ar_is_electronic_invoice
                                    or (l10n_ar_afip_auth_code and l10n_ar_afip_result != 'R')"
                         groups="account.group_account_invoice"/>
+
+                <!-- 5) "Constatar en ARCA" — solo en facturas IN con
+                        CAE/CAI/CAEA y la company con la feature WSCDC
+                        habilitada (Disponible o Requerido). -->
+                <button name="action_l10n_ar_constatar_arca"
+                        type="object"
+                        string="Constatar en ARCA"
+                        class="btn-secondary"
+                        invisible="not l10n_ar_supplier_validation_available"
+                        groups="account.group_account_invoice"/>
             </xpath>
 
             <!-- Tab "AFIP" en el notebook -->
             <xpath expr="//notebook" position="inside">
                 <page string="AFIP"
                       name="l10n_ar_afip"
-                      invisible="not l10n_ar_is_electronic_invoice">
-                    <group>
+                      invisible="not l10n_ar_is_electronic_invoice and not l10n_ar_supplier_validation_available">
+                    <group invisible="not l10n_ar_is_electronic_invoice">
                         <group string="Autorización">
                             <field name="l10n_ar_afip_result"
                                    readonly="1"
@@ -108,6 +119,43 @@
                                    invisible="l10n_ar_afip_concept not in ('2', '3', '4')"/>
                             <field name="l10n_ar_afip_service_end" readonly="1"
                                    invisible="l10n_ar_afip_concept not in ('2', '3', '4')"/>
+                        </group>
+                    </group>
+
+                    <!-- Política RG 5616 — solo cuando moneda != ARS empresa -->
+                    <group string="Pago en moneda extranjera (RG 5616)"
+                           invisible="not l10n_ar_payment_foreign_currency">
+                        <field name="l10n_ar_payment_foreign_currency"
+                               widget="radio"/>
+                    </group>
+
+                    <!-- FCE MiPyME (sólo cuando es FCE) -->
+                    <group string="FCE MiPyME (RG 4919/2021)"
+                           invisible="not l10n_ar_is_mipyme_fce">
+                        <field name="l10n_ar_is_mipyme_fce" invisible="1"/>
+                        <field name="l10n_ar_fce_transmission_type"
+                               widget="radio"/>
+                        <field name="l10n_ar_afip_fce_is_cancellation"
+                               invisible="not l10n_ar_is_mipyme_fce or move_type not in ('out_refund', 'in_refund')"/>
+                    </group>
+
+                    <!-- Constatación WSCDC (sólo facturas IN con feature habilitada) -->
+                    <group string="Constatación ARCA (WSCDC)"
+                           invisible="not l10n_ar_supplier_validation_available">
+                        <group>
+                            <field name="l10n_ar_afip_verification_result"
+                                   readonly="1"
+                                   widget="badge"
+                                   decoration-success="l10n_ar_afip_verification_result == 'A'"
+                                   decoration-warning="l10n_ar_afip_verification_result == 'O'"
+                                   decoration-danger="l10n_ar_afip_verification_result == 'R'"/>
+                            <field name="l10n_ar_afip_verification_date" readonly="1"/>
+                        </group>
+                        <group>
+                            <field name="l10n_ar_afip_verification_observations"
+                                   readonly="1"
+                                   widget="text"
+                                   invisible="not l10n_ar_afip_verification_observations"/>
                         </group>
                     </group>
 
@@ -134,10 +182,20 @@
                            groups="account.group_account_manager">
                         <field name="l10n_ar_afip_xml_request"
                                readonly="1"
-                               widget="text"/>
+                               widget="text"
+                               invisible="not l10n_ar_afip_xml_request"/>
                         <field name="l10n_ar_afip_xml_response"
                                readonly="1"
-                               widget="text"/>
+                               widget="text"
+                               invisible="not l10n_ar_afip_xml_response"/>
+                        <field name="l10n_ar_afip_verification_xml_request"
+                               readonly="1"
+                               widget="text"
+                               invisible="not l10n_ar_afip_verification_xml_request"/>
+                        <field name="l10n_ar_afip_verification_xml_response"
+                               readonly="1"
+                               widget="text"
+                               invisible="not l10n_ar_afip_verification_xml_response"/>
                     </group>
                 </page>
             </xpath>

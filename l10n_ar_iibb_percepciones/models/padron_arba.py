@@ -98,6 +98,272 @@ class PadronArbaImport(models.Model):
             rec.state = "active"
         return True
 
+    # ------------------------------------------------------------------
+    # ARBA Web Service — descarga automática vía cron
+    # ------------------------------------------------------------------
+    @api.model
+    def l10n_ar_arba_ws_download(self, company, target_month=None,
+                                  triggered_by="cron"):
+        """Descarga el padrón del mes para una company y lo importa."""
+        from calendar import monthrange
+        from datetime import date as _date, timedelta
+        import base64
+        from ..lib import arba_ws
+
+        Log = self.env["l10n_ar.arba.ws.log"]
+
+        if not company.l10n_ar_arba_ws_enabled:
+            raise UserError(_(
+                "La empresa %s no tiene 'Descarga padrón ARBA por WS' activada."
+            ) % company.name)
+
+        user = company.sudo().l10n_ar_arba_ws_user
+        password = company.sudo().l10n_ar_arba_ws_password
+        environment = company.sudo().l10n_ar_arba_ws_environment or "production"
+        if not user or not password:
+            raise UserError(_(
+                "Faltan credenciales ARBA DFE en la empresa %s. "
+                "Configurálas en Contabilidad → Localización Argentina."
+            ) % company.name)
+
+        if target_month is None:
+            target_month = fields.Date.context_today(self)
+        year, month = target_month.year, target_month.month
+        last_day = monthrange(year, month)[1]
+        fecha_desde = _date(year, month, 1)
+        fecha_hasta = _date(year, month, last_day)
+
+        recent_attempts = Log.sudo().search_count([
+            ("company_id", "=", company.id),
+            ("fecha_desde", "=", fecha_desde),
+            ("fecha_hasta", "=", fecha_hasta),
+            ("date", ">=", fields.Datetime.now() - timedelta(hours=4)),
+        ])
+        attempt = recent_attempts + 1
+
+        try:
+            response = arba_ws.download_padron(
+                user=user, password=password,
+                fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+                environment=environment,
+            )
+        except arba_ws.ArbaWsError as e:
+            company.sudo().write({
+                "l10n_ar_arba_ws_last_run": fields.Datetime.now(),
+                "l10n_ar_arba_ws_last_status": "failed" if (e.is_fatal or attempt >= 3) else "retrying",
+                "l10n_ar_arba_ws_last_error": str(e)[:255],
+            })
+            Log._record(
+                self.env, company, success=False,
+                fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+                attempt=attempt, triggered_by=triggered_by,
+                error_code=e.code, error_type=e.tipo, error_msg=e.message,
+                is_fatal=e.is_fatal,
+            )
+            _logger.warning(
+                "ARBA WS error %s para %s (attempt %s, fatal=%s): %s",
+                e.code, company.name, attempt, e.is_fatal, e,
+            )
+            if triggered_by == "manual":
+                raise UserError(_(
+                    "ARBA rechazó la descarga: [%s] %s"
+                ) % (e.code, e.message))
+            return self.browse()
+
+        except arba_ws.ArbaWsTransportError as e:
+            company.sudo().write({
+                "l10n_ar_arba_ws_last_run": fields.Datetime.now(),
+                "l10n_ar_arba_ws_last_status": "failed" if attempt >= 3 else "retrying",
+                "l10n_ar_arba_ws_last_error": str(e)[:255],
+            })
+            Log._record(
+                self.env, company, success=False,
+                fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+                attempt=attempt, triggered_by=triggered_by,
+                error_type="TRANSPORT", error_msg=str(e),
+                is_fatal=False,
+            )
+            _logger.warning(
+                "ARBA WS transport error para %s (attempt %s): %s",
+                company.name, attempt, e,
+            )
+            if triggered_by == "manual":
+                raise UserError(_("Error de red contra ARBA: %s") % e)
+            return self.browse()
+
+        # Éxito — parsear el ZIP, crear el import y bulk-insertar las alícuotas.
+        zip_bytes = response["zip_bytes"]
+        zip_name = response["filename"]
+        from ..lib import padron_arba as parser
+
+        try:
+            if zip_bytes[:2] == b"PK":
+                _, records = parser.parse_zip(zip_bytes)
+            else:
+                records = parser.parse_txt(zip_bytes)
+        except Exception as e:
+            _logger.exception(
+                "ARBA WS: parseo del ZIP descargado falló para %s: %s",
+                company.name, e,
+            )
+            Log._record(
+                self.env, company, success=False,
+                fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+                attempt=attempt, triggered_by=triggered_by,
+                error_type="PARSE", error_msg=str(e), is_fatal=True,
+                file_size=len(zip_bytes),
+                response_zip=base64.b64encode(zip_bytes),
+                response_zip_filename=zip_name,
+                request_xml=response.get("request_xml"),
+            )
+            company.sudo().write({
+                "l10n_ar_arba_ws_last_run": fields.Datetime.now(),
+                "l10n_ar_arba_ws_last_status": "failed",
+                "l10n_ar_arba_ws_last_error": "Parse error: %s" % e,
+            })
+            return self.browse()
+
+        if not records:
+            Log._record(
+                self.env, company, success=False,
+                fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+                attempt=attempt, triggered_by=triggered_by,
+                error_type="PARSE", error_msg="ZIP vacío o sin registros",
+                is_fatal=True, file_size=len(zip_bytes),
+                response_zip=base64.b64encode(zip_bytes),
+                response_zip_filename=zip_name,
+                request_xml=response.get("request_xml"),
+            )
+            company.sudo().write({
+                "l10n_ar_arba_ws_last_run": fields.Datetime.now(),
+                "l10n_ar_arba_ws_last_status": "failed",
+                "l10n_ar_arba_ws_last_error": "ZIP descargado vacío",
+            })
+            return self.browse()
+
+        # Calcular vigencia desde los registros (prioritario sobre lo
+        # pedido — ARBA puede dar un rango distinto).
+        date_from_set = {r.get("date_from") for r in records if r.get("date_from")}
+        date_to_set = {r.get("date_to") for r in records if r.get("date_to")}
+        real_date_from = min(date_from_set) if date_from_set else fecha_desde
+        real_date_to = max(date_to_set) if date_to_set else fecha_hasta
+
+        rec = self.create({
+            "name": _("ARBA %s WS") % target_month.strftime("%Y-%m"),
+            "date_from": real_date_from,
+            "date_to": real_date_to,
+            "company_id": company.id,
+            "file_data": base64.b64encode(zip_bytes),
+            "file_name": zip_name,
+            "state": "draft",
+        })
+
+        try:
+            self.env["l10n_ar.padron.arba.alicuota"].bulk_insert(rec.id, records)
+            rec.state = "imported"
+            rec.action_activate()
+        except Exception as e:
+            _logger.exception(
+                "ARBA WS: parseo del ZIP descargado falló para %s: %s",
+                company.name, e,
+            )
+            Log._record(
+                self.env, company, success=False,
+                fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+                attempt=attempt, triggered_by=triggered_by,
+                error_type="PARSE", error_msg=str(e), is_fatal=True,
+                file_size=len(zip_bytes),
+                response_zip=base64.b64encode(zip_bytes),
+                response_zip_filename=zip_name,
+                request_xml=response.get("request_xml"),
+            )
+            company.sudo().write({
+                "l10n_ar_arba_ws_last_run": fields.Datetime.now(),
+                "l10n_ar_arba_ws_last_status": "failed",
+                "l10n_ar_arba_ws_last_error": "Parse error: %s" % e,
+            })
+            return self.browse()
+
+        company.sudo().write({
+            "l10n_ar_arba_ws_last_run": fields.Datetime.now(),
+            "l10n_ar_arba_ws_last_status": "success",
+            "l10n_ar_arba_ws_last_error": False,
+        })
+        Log._record(
+            self.env, company, success=True,
+            fecha_desde=fecha_desde, fecha_hasta=fecha_hasta,
+            attempt=attempt, triggered_by=triggered_by,
+            file_size=len(zip_bytes),
+            import_id=rec.id,
+            response_zip_filename=zip_name,
+            request_xml=response.get("request_xml"),
+        )
+        _logger.info(
+            "ARBA WS descarga OK para %s — padrón %s (%s bytes)",
+            company.name, target_month.strftime("%Y-%m"), len(zip_bytes),
+        )
+        return rec
+
+    @api.model
+    def _cron_arba_ws_download(self):
+        """Cron mensual 1° del mes 09:00 — descarga padrón nuevo."""
+        Company = self.env["res.company"].sudo()
+        active = Company.search([("l10n_ar_arba_ws_enabled", "=", True)])
+        for company in active:
+            try:
+                self.l10n_ar_arba_ws_download(company, triggered_by="cron")
+            except Exception as e:
+                _logger.exception(
+                    "Cron ARBA WS: error inesperado para %s: %s",
+                    company.name, e,
+                )
+
+    @api.model
+    def _cron_arba_ws_retry(self):
+        """Cron horario días 1-5 — reintenta si last_status='retrying'.
+
+        Máx 3 intentos en 4h → si supera, queda en `failed` y se reintenta
+        al día siguiente en la misma ventana 1-5.
+        """
+        from datetime import timedelta
+        today = fields.Date.context_today(self)
+        if today.day > 5:
+            return
+
+        Company = self.env["res.company"].sudo()
+        Log = self.env["l10n_ar.arba.ws.log"]
+        active = Company.search([
+            ("l10n_ar_arba_ws_enabled", "=", True),
+            ("l10n_ar_arba_ws_last_status", "in", ["retrying", "failed"]),
+        ])
+        for company in active:
+            recent = Log.search_count([
+                ("company_id", "=", company.id),
+                ("date", ">=", fields.Datetime.now() - timedelta(hours=4)),
+            ])
+            if recent >= 3:
+                if company.l10n_ar_arba_ws_last_status != "failed":
+                    company.write({"l10n_ar_arba_ws_last_status": "failed"})
+                continue
+            existing = self.search_count([
+                ("company_id", "=", company.id),
+                ("date_from", "<=", today),
+                ("date_to", ">=", today),
+                ("state", "=", "active"),
+            ])
+            if existing:
+                company.write({
+                    "l10n_ar_arba_ws_last_status": "success",
+                    "l10n_ar_arba_ws_last_error": False,
+                })
+                continue
+            try:
+                self.l10n_ar_arba_ws_download(company, triggered_by="cron")
+            except Exception as e:
+                _logger.exception(
+                    "Cron ARBA WS retry: error para %s: %s", company.name, e,
+                )
+
 
 class PadronArbaAlicuota(models.Model):
     _name = "l10n_ar.padron.arba.alicuota"

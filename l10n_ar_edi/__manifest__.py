@@ -1,7 +1,7 @@
 # Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details.
 {
     "name": "Argentina EDI — Emisión Electrónica",
-    "version": "19.0.0.1.0",
+    "version": "19.0.0.3.4",
     "category": "Accounting/Localizations/EDI",
     "summary": "Emisión de comprobantes electrónicos argentinos (WSFEv1, A/B/C)",
     "description": """
@@ -32,8 +32,13 @@ Exento/No alcanzado (C).
         "l10n_ar_afip_ws",
     ],
     "data": [
+        "security/ir.model.access.csv",
+        "data/cron.xml",
+        "wizards/l10n_ar_csr_wizard_view.xml",
         "views/account_move_view.xml",
         "views/report_invoice_document.xml",
+        "views/res_config_settings_view.xml",
+        "views/res_currency_views.xml",
         # "wizards/afip_ws_consult_view.xml",  # pendiente: FECompConsultar por UI
     ],
     "installable": True,

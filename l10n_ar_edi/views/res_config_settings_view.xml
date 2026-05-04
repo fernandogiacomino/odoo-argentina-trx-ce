@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<!--
+    Sección "Localización para Argentina" en Configuración → Contabilidad.
+    Replica visualmente la UI de enterprise (`l10n_ar_edi`) para que los
+    operadores que migran sientan el cambio mínimo, pero los settings van
+    a campos nuestros en res.company (no a ir.config_parameter).
+-->
+<odoo>
+    <record id="res_config_settings_view_form_l10n_ar_edi" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.l10n_ar_edi</field>
+        <field name="model">res.config.settings</field>
+        <field name="inherit_id" ref="account.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+
+            <!--
+                Insertamos un nuevo bloque "Localización para Argentina"
+                al final del notebook de Contabilidad. Lo metemos como
+                último <block> dentro del <app data-string="Accounting">.
+                Usamos xpath con un anchor estable.
+            -->
+            <xpath expr="//app[@name='account']" position="inside">
+                <block title="Localización para Argentina"
+                       name="l10n_ar_edi_block"
+                       invisible="country_code != 'AR'">
+
+                    <!-- Webservices ARCA (entorno + cert) -->
+                    <setting string="Webservices de ARCA"
+                             company_dependent="1"
+                             help="Configuración del entorno y certificado AFIP/ARCA para emisión electrónica.">
+                        <field name="l10n_ar_afip_ws_environment"
+                               class="o_light_label"
+                               widget="radio"/>
+                        <div class="content-group">
+                            <div class="d-flex align-items-center mt8">
+                                <label for="l10n_ar_afip_ws_cert_id"
+                                       string="Certificado"
+                                       class="o_light_label col-lg-3"/>
+                                <field name="l10n_ar_afip_ws_cert_id"
+                                       options="{'no_quick_create': True}"/>
+                            </div>
+                            <div class="mt16">
+                                <button name="l10n_ar_action_test_connections"
+                                        icon="oi-arrow-right"
+                                        type="object"
+                                        class="oe_link oe_inline"
+                                        string="Conexiones de prueba"/>
+                            </div>
+                            <div class="mt16">
+                                <button name="l10n_ar_action_create_csr"
+                                        icon="oi-arrow-right"
+                                        type="object"
+                                        class="oe_link oe_inline"
+                                        string="Generar solicitud de renovación"/>
+                            </div>
+                            <div class="mt16">
+                                <a href="https://www.afip.gob.ar/ws/WSAA/WSAA.ObtenerCertificado.pdf"
+                                   target="_blank">
+                                    ¿Cómo obtener un certificado para producción?
+                                </a>
+                            </div>
+                        </div>
+                    </setting>
+
+                    <!-- WSCDC: Verificar facturas de proveedor en ARCA -->
+                    <setting string="Verificar la validez de las facturas de proveedor en AFIP"
+                             company_dependent="1"
+                             help="Permitir o requerir la validación de facturas de proveedor en la AFIP (WSCDC) para los documentos que tengan número CAE, CAI o CAEA.">
+                        <field name="l10n_ar_supplier_validation_type"
+                               class="o_light_label"
+                               widget="radio"/>
+                    </setting>
+
+                    <!-- FCE MiPyME -->
+                    <setting string="Opción de transmisión predeterminada FCE MiPyME"
+                             company_dependent="1"
+                             help="Esta información será enviada a la AFIP de forma predeterminada al momento de validar los documentos del FCE. Requisito RG 4919/2021.">
+                        <field name="l10n_ar_fce_transmission_type"
+                               class="o_light_label"
+                               widget="radio"/>
+                    </setting>
+
+                    <!-- Política pago moneda extranjera RG 5616 -->
+                    <setting string="Política por defecto para el Pago en Moneda Extranjera"
+                             company_dependent="1">
+                        <div class="text-muted">
+                            Por favor seleccionar la opción por defecto que será
+                            usada para informar a ARCA si el pago se hará en
+                            moneda extranjera, como es requerido por la RG 5616/2024:
+                            <ul>
+                                <li>Sí → Siempre informará a ARCA que los pagos serán en moneda extranjera</li>
+                                <li>No → No reportará que los pagos son en moneda extranjera por defecto</li>
+                                <li>Depende de la moneda de la cuenta → Se informará dependiendo de la moneda en la cuenta por cobrar usada en la transacción</li>
+                            </ul>
+                        </div>
+                        <field name="l10n_ar_payment_foreign_currency_policy"
+                               class="o_light_label"
+                               widget="radio"/>
+                    </setting>
+
+                    <!-- Cron cotización USD/EUR diaria -->
+                    <setting string="Cotización USD/EUR diaria automática"
+                             company_dependent="1"
+                             help="Cron diario que actualiza la cotización oficial del día (BNA o AFIP).">
+                        <field name="l10n_ar_afip_auto_currency_rate"/>
+                        <div class="content-group" invisible="not l10n_ar_afip_auto_currency_rate">
+                            <div class="row mt8">
+                                <label for="l10n_ar_currency_rate_source" class="col-lg-4 o_light_label" string="Fuente"/>
+                                <field name="l10n_ar_currency_rate_source"/>
+                            </div>
+                            <div class="text-muted mt8" style="font-size: 12px;">
+                                ✅ Diariamente toma la cotización del día de la fuente seleccionada<br/>
+                                ✅ Se usa el precio de <b>VENTA</b> (el banco vende moneda extranjera)<br/>
+                                ✅ Guarda en res.currency.rate como rate = 1 / venta_ARS
+                            </div>
+                            <div class="mt8">
+                                <button name="action_l10n_ar_update_rates_now"
+                                        type="object"
+                                        string="Actualizar cotizaciones ahora"
+                                        class="oe_link oe_inline"
+                                        icon="oi-arrow-right"/>
+                            </div>
+                        </div>
+                    </setting>
+                </block>
+            </xpath>
+        </field>
+    </record>
+</odoo>

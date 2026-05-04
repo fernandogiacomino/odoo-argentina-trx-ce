@@ -1,1 +1,5 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_mis_comprobantes_import_user,mis.comprobantes.import.user,model_l10n_ar_mis_comprobantes_import,account.group_account_invoice,1,1,1,1
+access_mis_comprobantes_line_user,mis.comprobantes.line.user,model_l10n_ar_mis_comprobantes_line,account.group_account_invoice,1,1,1,1
+access_mis_comprobantes_import_manager,mis.comprobantes.import.manager,model_l10n_ar_mis_comprobantes_import,account.group_account_manager,1,1,1,1
+access_mis_comprobantes_line_manager,mis.comprobantes.line.manager,model_l10n_ar_mis_comprobantes_line,account.group_account_manager,1,1,1,1

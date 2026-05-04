@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <record id="view_l10n_ar_caea_list" model="ir.ui.view">
+        <field name="name">l10n_ar.caea.list</field>
+        <field name="model">l10n_ar.caea</field>
+        <field name="arch" type="xml">
+            <list decoration-success="state == 'active'"
+                  decoration-muted="state == 'reported'"
+                  decoration-warning="state == 'expired'">
+                <field name="code"/>
+                <field name="periodo"/>
+                <field name="orden"/>
+                <field name="fch_vig_desde"/>
+                <field name="fch_vig_hasta"/>
+                <field name="fch_topea_inf"/>
+                <field name="move_count"/>
+                <field name="move_pending_count"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'active'"
+                       decoration-muted="state == 'reported'"
+                       decoration-warning="state == 'expired'"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_l10n_ar_caea_form" model="ir.ui.view">
+        <field name="name">l10n_ar.caea.form</field>
+        <field name="model">l10n_ar.caea</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <field name="state" widget="statusbar" statusbar_visible="active,reported,expired"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_view_moves"
+                                type="object"
+                                class="oe_stat_button"
+                                icon="fa-file-text-o">
+                            <field name="move_count" widget="statinfo" string="Comprobantes"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="code" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="periodo"/>
+                            <field name="orden"/>
+                            <field name="fch_proceso"/>
+                        </group>
+                        <group>
+                            <field name="fch_vig_desde"/>
+                            <field name="fch_vig_hasta"/>
+                            <field name="fch_topea_inf"/>
+                            <field name="move_pending_count"/>
+                        </group>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_l10n_ar_caea" model="ir.actions.act_window">
+        <field name="name">CAEA</field>
+        <field name="res_model">l10n_ar.caea</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_l10n_ar_caea"
+              name="CAEA"
+              parent="account.menu_finance_configuration"
+              action="action_l10n_ar_caea"
+              sequence="170"/>
+</odoo>

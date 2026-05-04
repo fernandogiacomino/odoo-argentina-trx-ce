@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <!-- Cron diario de cotización oficial AFIP. Solo corre si la company
+         tiene `l10n_ar_afip_auto_currency_rate=True`. -->
+    <record id="cron_l10n_ar_update_rates_afip" model="ir.cron">
+        <field name="name">AFIP — Cotización oficial diaria</field>
+        <field name="model_id" ref="base.model_res_currency"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_l10n_ar_update_rates_from_afip()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="active" eval="True"/>
+        <field name="user_id" ref="base.user_root"/>
+    </record>
+</odoo>

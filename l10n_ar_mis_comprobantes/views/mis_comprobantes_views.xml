@@ -1,0 +1,295 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+
+    <!-- ============================================================
+         Batch import — list + form
+         ============================================================ -->
+    <record id="view_mis_comprobantes_import_list" model="ir.ui.view">
+        <field name="name">l10n_ar.mis.comprobantes.import.list</field>
+        <field name="model">l10n_ar.mis.comprobantes.import</field>
+        <field name="arch" type="xml">
+            <list string="Mis Comprobantes — batches" decoration-info="state == 'draft'"
+                  decoration-success="state == 'cotejado'"
+                  decoration-muted="state == 'archived'">
+                <field name="name"/>
+                <field name="kind"/>
+                <field name="date_from"/>
+                <field name="date_to"/>
+                <field name="line_count" string="Líneas"/>
+                <field name="match_ok_count" string="OK"/>
+                <field name="match_solo_afip_count" string="Sólo AFIP"/>
+                <field name="match_solo_odoo_count" string="Sólo Odoo"/>
+                <field name="match_diff_count" string="Diff"/>
+                <field name="state" widget="badge"
+                       decoration-info="state == 'draft'"
+                       decoration-success="state == 'cotejado'"
+                       decoration-muted="state == 'archived'"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_mis_comprobantes_import_form" model="ir.ui.view">
+        <field name="name">l10n_ar.mis.comprobantes.import.form</field>
+        <field name="model">l10n_ar.mis.comprobantes.import</field>
+        <field name="arch" type="xml">
+            <form string="Mis Comprobantes — batch">
+                <header>
+                    <button name="action_parse_file"
+                            type="object"
+                            string="Importar archivo"
+                            class="btn-primary"
+                            invisible="state != 'draft' or not file_data"/>
+                    <button name="action_match"
+                            type="object"
+                            string="Re-cotejar"
+                            invisible="state == 'archived' or not line_ids"/>
+                    <button name="action_archive_batch"
+                            type="object"
+                            string="Cerrar batch"
+                            invisible="state != 'cotejado'"/>
+                    <button name="action_reset_batch"
+                            type="object"
+                            string="Resetear"
+                            invisible="state == 'archived'"
+                            confirm="Vas a borrar todas las líneas. ¿Continuar?"/>
+                    <button name="action_open_solo_afip_to_create"
+                            type="object"
+                            string="Crear faltantes en Odoo"
+                            class="btn-warning"
+                            invisible="kind != 'received' or match_solo_afip_count == 0 or state == 'archived'"
+                            help="Abre la lista de comprobantes que están en AFIP pero no en Odoo, con checkboxes para tildar cuáles crear."/>
+                    <field name="state" widget="statusbar" statusbar_visible="draft,cotejado,archived"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_ok" type="object"
+                                class="oe_stat_button" icon="fa-check">
+                            <field name="match_ok_count" widget="statinfo" string="OK"/>
+                        </button>
+                        <button name="action_open_solo_afip" type="object"
+                                class="oe_stat_button" icon="fa-cloud-download">
+                            <field name="match_solo_afip_count" widget="statinfo" string="Sólo AFIP"/>
+                        </button>
+                        <button name="action_open_solo_odoo" type="object"
+                                class="oe_stat_button" icon="fa-database">
+                            <field name="match_solo_odoo_count" widget="statinfo" string="Sólo Odoo"/>
+                        </button>
+                        <button name="action_open_amount_diff" type="object"
+                                class="oe_stat_button" icon="fa-exclamation-triangle">
+                            <field name="match_diff_count" widget="statinfo" string="Diff $"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="kind" readonly="state != 'draft'"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                            <field name="date_from"/>
+                            <field name="date_to"/>
+                        </group>
+                        <group>
+                            <field name="file_data"
+                                   filename="file_name"
+                                   readonly="state == 'archived'"/>
+                            <field name="file_name" invisible="1"/>
+                            <field name="line_count"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Líneas">
+                            <field name="line_ids" readonly="1"
+                                   context="{'default_import_id': id}">
+                                <list decoration-success="match_state == 'ok'"
+                                      decoration-warning="match_state == 'amount_diff'"
+                                      decoration-danger="match_state in ('solo_afip', 'solo_odoo')"
+                                      decoration-muted="match_state == 'pending'">
+                                    <field name="fecha_emision"/>
+                                    <field name="tipo_cbte"/>
+                                    <field name="pto_vta"/>
+                                    <field name="nro_desde"/>
+                                    <field name="cae" optional="hide"/>
+                                    <field name="doc_nro_partner"/>
+                                    <field name="denom_partner"/>
+                                    <field name="moneda" optional="hide"/>
+                                    <field name="imp_neto_gravado" optional="hide"/>
+                                    <field name="imp_iva" optional="hide"/>
+                                    <field name="imp_total" sum="Total"/>
+                                    <field name="match_state" widget="badge"
+                                           decoration-success="match_state == 'ok'"
+                                           decoration-warning="match_state == 'amount_diff'"
+                                           decoration-danger="match_state in ('solo_afip', 'solo_odoo')"/>
+                                    <field name="move_id" optional="show"/>
+                                    <field name="match_diff_total" optional="hide"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_mis_comprobantes_line_list" model="ir.ui.view">
+        <field name="name">l10n_ar.mis.comprobantes.line.list</field>
+        <field name="model">l10n_ar.mis.comprobantes.line</field>
+        <field name="arch" type="xml">
+            <list string="Líneas Mis Comprobantes"
+                  multi_edit="0"
+                  decoration-success="match_state == 'ok'"
+                  decoration-warning="match_state == 'amount_diff'"
+                  decoration-danger="match_state in ('solo_afip', 'solo_odoo')">
+                <header>
+                    <button name="action_create_move_bulk"
+                            type="object"
+                            string="Crear comprobantes seleccionados"
+                            class="btn-primary"
+                            display="always"
+                            confirm="Vas a crear los account.move IN seleccionados (solo aplica a Recibidos en estado 'Sólo en AFIP'). ¿Continuar?"/>
+                </header>
+                <field name="import_id"/>
+                <field name="fecha_emision"/>
+                <field name="tipo_cbte"/>
+                <field name="pto_vta"/>
+                <field name="nro_desde"/>
+                <field name="cae"/>
+                <field name="doc_nro_partner"/>
+                <field name="denom_partner"/>
+                <field name="imp_total" sum="Total"/>
+                <field name="match_state" widget="badge"/>
+                <field name="move_id"/>
+                <field name="match_diff_total" sum="Δ"/>
+                <field name="kind" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_mis_comprobantes_line_form" model="ir.ui.view">
+        <field name="name">l10n_ar.mis.comprobantes.line.form</field>
+        <field name="model">l10n_ar.mis.comprobantes.line</field>
+        <field name="arch" type="xml">
+            <form string="Línea">
+                <header>
+                    <button name="action_open_move"
+                            type="object"
+                            string="Abrir comprobante en Odoo"
+                            class="btn-primary"
+                            invisible="not move_id"/>
+                    <button name="action_create_move"
+                            type="object"
+                            string="Crear sólo este comprobante"
+                            class="btn-secondary"
+                            invisible="kind != 'received' or match_state not in ('solo_afip', 'pending') or move_id"
+                            help="Para crear varios a la vez, volvé al batch y usá 'Crear faltantes en Odoo'."
+                            confirm="Vas a crear un account.move IN en draft a partir de los datos del XLS. ¿Continuar?"/>
+                    <field name="match_state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="import_id"/>
+                            <field name="kind"/>
+                            <field name="fecha_emision"/>
+                            <field name="tipo_cbte"/>
+                            <field name="pto_vta"/>
+                            <field name="nro_desde"/>
+                            <field name="nro_hasta"/>
+                            <field name="cae"/>
+                        </group>
+                        <group>
+                            <field name="doc_tipo_partner"/>
+                            <field name="doc_nro_partner"/>
+                            <field name="denom_partner"/>
+                            <field name="moneda"/>
+                            <field name="tipo_cambio"/>
+                            <field name="move_id"/>
+                            <field name="match_diff_total"/>
+                        </group>
+                    </group>
+                    <group string="Importes">
+                        <group>
+                            <field name="imp_neto_gravado"/>
+                            <field name="imp_neto_no_gravado"/>
+                            <field name="imp_op_exentas"/>
+                        </group>
+                        <group>
+                            <field name="imp_otros_tributos"/>
+                            <field name="imp_iva"/>
+                            <field name="imp_total"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_mis_comprobantes_line_search" model="ir.ui.view">
+        <field name="name">l10n_ar.mis.comprobantes.line.search</field>
+        <field name="model">l10n_ar.mis.comprobantes.line</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="cae"/>
+                <field name="doc_nro_partner"/>
+                <field name="denom_partner"/>
+                <field name="import_id"/>
+                <filter string="OK" name="ok" domain="[('match_state','=','ok')]"/>
+                <filter string="Sólo AFIP" name="solo_afip" domain="[('match_state','=','solo_afip')]"/>
+                <filter string="Sólo Odoo" name="solo_odoo" domain="[('match_state','=','solo_odoo')]"/>
+                <filter string="Diff importe" name="diff" domain="[('match_state','=','amount_diff')]"/>
+                <separator/>
+                <filter string="Emitidos" name="emitted" domain="[('kind','=','emitted')]"/>
+                <filter string="Recibidos" name="received" domain="[('kind','=','received')]"/>
+                <separator/>
+                <filter string="Estado cotejo" name="g_state" context="{'group_by':'match_state'}"/>
+                <filter string="Tipo cbte" name="g_tipo" context="{'group_by':'tipo_cbte'}"/>
+                <filter string="Mes" name="g_mes" context="{'group_by':'fecha_emision:month'}"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- ============================================================
+         Actions + Menus
+         ============================================================ -->
+    <record id="action_mis_comprobantes_import" model="ir.actions.act_window">
+        <field name="name">Cotejo Mis Comprobantes</field>
+        <field name="res_model">l10n_ar.mis.comprobantes.import</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Crear un nuevo cotejo
+            </p>
+            <p>
+                Subí el XLS de "Mis Comprobantes" del portal ARCA y
+                Odoo lo cruza con tus facturas registradas para detectar
+                diferencias.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_mis_comprobantes_line" model="ir.actions.act_window">
+        <field name="name">Líneas Mis Comprobantes</field>
+        <field name="res_model">l10n_ar.mis.comprobantes.line</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_mis_comprobantes_root"
+              name="Cotejo Mis Comprobantes"
+              parent="account.menu_finance_reports"
+              action="action_mis_comprobantes_import"
+              sequence="160"/>
+
+    <!-- Server action bulk: crear comprobantes desde varias líneas
+         seleccionadas en la list. -->
+    <record id="action_server_create_moves_bulk" model="ir.actions.server">
+        <field name="name">Crear comprobantes en Odoo</field>
+        <field name="model_id" ref="model_l10n_ar_mis_comprobantes_line"/>
+        <field name="binding_model_id" ref="model_l10n_ar_mis_comprobantes_line"/>
+        <field name="binding_view_types">list</field>
+        <field name="state">code</field>
+        <field name="code">action = records.action_create_move_bulk()</field>
+    </record>
+</odoo>

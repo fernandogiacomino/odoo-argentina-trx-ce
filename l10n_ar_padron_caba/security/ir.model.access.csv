@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_padron_agip_import_user,padron.agip.import.user,model_l10n_ar_padron_agip_import,account.group_account_invoice,1,0,0,0
+access_padron_agip_import_manager,padron.agip.import.manager,model_l10n_ar_padron_agip_import,account.group_account_manager,1,1,1,1
+access_padron_agip_alicuota_user,padron.agip.alicuota.user,model_l10n_ar_padron_agip_alicuota,account.group_account_invoice,1,0,0,0
+access_padron_agip_alicuota_manager,padron.agip.alicuota.manager,model_l10n_ar_padron_agip_alicuota,account.group_account_manager,1,1,1,1
+access_padron_agip_upload_wizard_user,padron.agip.upload.wizard.user,model_l10n_ar_padron_agip_upload_wizard,account.group_account_invoice,1,1,1,1

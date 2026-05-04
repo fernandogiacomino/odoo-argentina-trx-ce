@@ -1,0 +1,6 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_padron_santafe_import_user,padron.santafe.import.user,model_l10n_ar_padron_santafe_import,account.group_account_invoice,1,0,0,0
+access_padron_santafe_import_manager,padron.santafe.import.manager,model_l10n_ar_padron_santafe_import,account.group_account_manager,1,1,1,1
+access_padron_santafe_alicuota_user,padron.santafe.alicuota.user,model_l10n_ar_padron_santafe_alicuota,account.group_account_invoice,1,0,0,0
+access_padron_santafe_alicuota_manager,padron.santafe.alicuota.manager,model_l10n_ar_padron_santafe_alicuota,account.group_account_manager,1,1,1,1
+access_padron_santafe_upload_wizard_user,padron.santafe.upload.wizard.user,model_l10n_ar_padron_santafe_upload_wizard,account.group_account_invoice,1,1,1,1

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <record id="view_l10n_ar_caea_log_list" model="ir.ui.view">
+        <field name="name">l10n_ar.caea.log.list</field>
+        <field name="model">l10n_ar.caea.log</field>
+        <field name="arch" type="xml">
+            <list decoration-success="success == True"
+                  decoration-danger="success == False">
+                <field name="date"/>
+                <field name="event_type"/>
+                <field name="caea_id"/>
+                <field name="success" widget="boolean_toggle" readonly="1"/>
+                <field name="affected_count" optional="hide"/>
+                <field name="message"/>
+                <field name="error_code" optional="hide"/>
+                <field name="triggered_by" optional="show"/>
+                <field name="company_id" optional="hide" groups="base.group_multi_company"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_l10n_ar_caea_log_form" model="ir.ui.view">
+        <field name="name">l10n_ar.caea.log.form</field>
+        <field name="model">l10n_ar.caea.log</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <div class="oe_title">
+                        <h2><field name="display_name" readonly="1"/></h2>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="date"/>
+                            <field name="event_type"/>
+                            <field name="success"/>
+                            <field name="triggered_by"/>
+                        </group>
+                        <group>
+                            <field name="caea_id"/>
+                            <field name="affected_count"/>
+                            <field name="company_id" groups="base.group_multi_company"/>
+                        </group>
+                    </group>
+                    <group string="Resumen">
+                        <field name="message" nolabel="1" readonly="1"/>
+                    </group>
+                    <group string="Error" invisible="success">
+                        <field name="error_code"/>
+                        <field name="error_msg" widget="text"/>
+                    </group>
+                    <notebook groups="account.group_account_manager">
+                        <page string="XML enviado">
+                            <field name="xml_request" widget="text" readonly="1"/>
+                        </page>
+                        <page string="XML recibido">
+                            <field name="xml_response" widget="text" readonly="1"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_l10n_ar_caea_log_search" model="ir.ui.view">
+        <field name="name">l10n_ar.caea.log.search</field>
+        <field name="model">l10n_ar.caea.log</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="caea_id"/>
+                <field name="message"/>
+                <filter string="OK" name="ok" domain="[('success','=',True)]"/>
+                <filter string="Errores" name="err" domain="[('success','=',False)]"/>
+                <separator/>
+                <filter string="Solicitar" name="solicitar" domain="[('event_type','=','solicitar')]"/>
+                <filter string="Consultar" name="consultar" domain="[('event_type','=','consultar')]"/>
+                <filter string="Rendir" name="rendir" domain="[('event_type','=','rendir')]"/>
+                <filter string="Sin movimiento" name="sin_mov" domain="[('event_type','=','sin_movimiento')]"/>
+                <separator/>
+                <filter string="Por cron" name="cron" domain="[('triggered_by','=','cron')]"/>
+                <filter string="Manual" name="manual" domain="[('triggered_by','=','manual')]"/>
+                <filter string="Fallback _post" name="fallback" domain="[('triggered_by','=','post_fallback')]"/>
+                <separator/>
+                <filter string="Tipo" name="g_type" context="{'group_by':'event_type'}"/>
+                <filter string="Día" name="g_date" context="{'group_by':'date:day'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_l10n_ar_caea_log" model="ir.actions.act_window">
+        <field name="name">Log CAEA — Auditoría AFIP</field>
+        <field name="res_model">l10n_ar.caea.log</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_l10n_ar_caea_log"
+              name="Log CAEA"
+              parent="l10n_ar_afip_ws.menu_l10n_ar_ws_logs_root"
+              action="action_l10n_ar_caea_log"
+              sequence="10"/>
+</odoo>

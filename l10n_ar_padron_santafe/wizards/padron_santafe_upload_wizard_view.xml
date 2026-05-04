@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<odoo>
+    <record id="view_padron_santafe_upload_wizard_form" model="ir.ui.view">
+        <field name="name">l10n_ar.padron.santafe.upload.wizard.form</field>
+        <field name="model">l10n_ar.padron.santafe.upload.wizard</field>
+        <field name="arch" type="xml">
+            <form string="Subir padrón API Santa Fe">
+                <sheet>
+                    <p>
+                        Descargá el padrón mensual del portal
+                        <a href="https://www.santafe.gob.ar/agentes/agentes-de-recaudacion/ib-agentes-recaudacion/padrones/padrones" target="_blank">API — Padrones</a>
+                        y subilo acá. Si viene en `.RAR`, descomprimí
+                        antes y subí el `.TXT` o re-empaqueta como `.ZIP`.
+                    </p>
+                    <group>
+                        <field name="name"/>
+                        <field name="company_id" groups="base.group_multi_company"/>
+                        <field name="file_data" filename="file_name"/>
+                        <field name="file_name" invisible="1"/>
+                    </group>
+                </sheet>
+                <footer>
+                    <button name="action_import" type="object"
+                            string="Importar y activar" class="btn-primary"/>
+                    <button string="Cerrar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_padron_santafe_upload_wizard" model="ir.actions.act_window">
+        <field name="name">Subir padrón API Santa Fe</field>
+        <field name="res_model">l10n_ar.padron.santafe.upload.wizard</field>
+        <field name="view_mode">form</field>
+        <field name="target">new</field>
+    </record>
+</odoo>

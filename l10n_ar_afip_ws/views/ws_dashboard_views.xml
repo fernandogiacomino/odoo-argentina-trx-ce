@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details. -->
+<!--
+    Menú padre "Logs Web Services" en Configuración → Contabilidad.
+    Los módulos l10n_ar_caea y l10n_ar_iibb_percepciones agregan
+    submenús referenciando este como `parent`.
+
+    También define una action para ver constataciones WSCDC — filtro
+    sobre account.move con l10n_ar_afip_verification_result distinto
+    de False.
+-->
+<odoo>
+    <!-- Menú padre "Logs Web Services" -->
+    <menuitem id="menu_l10n_ar_ws_logs_root"
+              name="Logs Web Services AFIP/ARCA"
+              parent="account.menu_finance_configuration"
+              sequence="165"/>
+
+    <!-- Constataciones WSCDC: filter sobre account.move -->
+    <record id="action_l10n_ar_wscdc_constataciones" model="ir.actions.act_window">
+        <field name="name">Constataciones WSCDC (facturas verificadas)</field>
+        <field name="res_model">account.move</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('l10n_ar_afip_verification_result', '!=', False)]</field>
+        <field name="context">{'search_default_group_by_state': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Sin constataciones todavía
+            </p>
+            <p>
+                Acá se listan las facturas (in_invoice / in_refund) que
+                fueron verificadas con WSCDC contra ARCA. El campo
+                <code>l10n_ar_afip_verification_result</code> tiene
+                el resultado: A (aprobado), O (observado), R (rechazado).
+            </p>
+        </field>
+    </record>
+
+    <menuitem id="menu_l10n_ar_wscdc_constataciones"
+              name="Constataciones WSCDC"
+              parent="menu_l10n_ar_ws_logs_root"
+              action="action_l10n_ar_wscdc_constataciones"
+              sequence="30"/>
+</odoo>

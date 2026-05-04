@@ -1,7 +1,7 @@
 # Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details.
 {
     "name": "Argentina EDI — Cliente Web Services AFIP/ARCA",
-    "version": "19.0.0.1.0",
+    "version": "19.0.0.5.0",
     "category": "Accounting/Localizations/EDI",
     "summary": "Cliente Python puro para WSAA, WSFEv1 y futuros WSFEX/WSBFE/WSCDC",
     "description": """
@@ -31,7 +31,7 @@ Depende de la librería `zeep` (package Debian `python3-zeep` o pip `zeep`).
     },
     "data": [
         "security/ir.model.access.csv",
-        # "views/ws_connection_view.xml",   # vistas en Fase 1.1
+        "views/ws_dashboard_views.xml",
     ],
     "installable": True,
     "application": False,

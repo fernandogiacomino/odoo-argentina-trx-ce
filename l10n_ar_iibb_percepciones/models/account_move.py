@@ -72,29 +72,50 @@ class AccountMove(models.Model):
         )
         target_aliquot = row.aliquot_perception if row else 0.0
 
-        # 2) Buscar el tax ARBA con esa alícuota (o ningún ARBA si =0).
-        existing_arba = Tax.search([
+        # 2) Buscar el tax ARBA con esa alícuota. Estrategia:
+        #    - PRIMERO: tax con prefijo oficial 'P. IIBB PBA' y % exacto
+        #      (template Odoo 19 l10n_ar). Reusar si está, activar si no.
+        #    - FALLBACK: tax legacy con `l10n_ar_padron_jurisdiction='arba'`
+        #      (módulos viejos / installs migradas).
+        TaxAll = Tax.with_context(active_test=False)
+        existing_arba = TaxAll.search([
             ("type_tax_use", "=", "sale"),
-            ("l10n_ar_padron_jurisdiction", "=", "arba"),
             ("company_id", "=", company.id),
+            "|",
+              ("name", "ilike", "P. IIBB PBA%"),
+              ("l10n_ar_padron_jurisdiction", "=", "arba"),
         ])
         target_tax = (
             existing_arba.filtered(lambda t: t.amount == target_aliquot)[:1]
             if target_aliquot > 0 else Tax.browse()
         )
+        if target_tax and not target_tax.active:
+            target_tax.active = True
 
-        # 3) Si necesitamos un tax nuevo (no existe el de esa alícuota), lo
-        #    creamos clonando uno existente del jurisdiction ARBA.
+        # 3) Si necesitamos un tax nuevo, clonar el template `P. IIBB PBA 0%`
+        #    (preferido) o el primer tax con jurisdiction='arba' (fallback).
         if target_aliquot > 0 and not target_tax:
-            template = existing_arba[:1]
+            template = existing_arba.filtered(
+                lambda t: t.amount == 0 and (t.display_name or "").startswith("P. IIBB PBA")
+            )[:1]
+            if not template:
+                template = existing_arba[:1]
             if template:
+                pct_str = "%.2f" % target_aliquot
+                if pct_str.endswith(".00"):
+                    pct_str = pct_str[:-3]
+                if (template.display_name or "").startswith("P. IIBB PBA"):
+                    new_name = "P. IIBB PBA %s%%" % pct_str
+                else:
+                    new_name = "Percepción IIBB BA %s%%" % pct_str
                 target_tax = template.copy({
-                    "name": "Percepción IIBB BA %.2f%%" % target_aliquot,
+                    "name": new_name,
                     "amount": target_aliquot,
+                    "active": True,
                 })
                 _logger.info(
-                    "Creado nuevo tax IIBB BA %.2f%% (id=%s) clonando id=%s",
-                    target_aliquot, target_tax.id, template.id,
+                    "Creado tax %s (id=%s) clonando id=%s",
+                    new_name, target_tax.id, template.id,
                 )
 
         # 4) Aplicar a las líneas. Sacamos cualquier ARBA viejo y ponemos
@@ -102,6 +123,7 @@ class AccountMove(models.Model):
         for line in self.invoice_line_ids:
             current_arba = line.tax_ids.filtered(
                 lambda t: t.l10n_ar_padron_jurisdiction == "arba"
+                or (t.display_name or "").startswith("P. IIBB PBA")
             )
             new_taxes = line.tax_ids - current_arba
             if target_tax:

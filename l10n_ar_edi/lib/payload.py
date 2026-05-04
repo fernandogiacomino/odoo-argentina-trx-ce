@@ -68,6 +68,7 @@ def build_fecae_request(
     fch_vto_pago=None,
     cbtes_asoc=None,
     tributos=None,
+    opcionales=None,
     can_mis_mon_ext="N",
 ):
     """Arma el dict `FeCAEReq` exacto para `FECAESolicitar`.
@@ -80,6 +81,10 @@ def build_fecae_request(
     :param cbtes_asoc: lista de dicts con los comprobantes asociados (obligatorio
                       para notas de crédito/débito).
     :param tributos: lista de dicts para Tributos (IIBB, impuestos municipales, etc.).
+    :param opcionales: lista de dicts {'Id': int, 'Valor': str} para el bloque
+                      `Opcionales`. Lo usan FCE MiPyME (Id=27 SCA/ADC, Id=2101 CBU,
+                      Id=22 cancelación), FE-C tarjetas, etc. AFIP define el catálogo
+                      vía `FEParamGetTiposOpcional`.
 
     :return: dict listo para mandar como `FeCAEReq` en `FECAESolicitar`.
              Estructura: {"FeCabReq": {...}, "FeDetReq": {"FECAEDetRequest": [{...}]}}.
@@ -173,6 +178,14 @@ def build_fecae_request(
         det["CbtesAsoc"] = {"CbteAsoc": list(cbtes_asoc)}
     if tributos:
         det["Tributos"] = {"Tributo": list(tributos)}
+    if opcionales:
+        # Cada opcional debe tener Id y Valor (ambos string en el WSDL).
+        det["Opcionales"] = {
+            "Opcional": [
+                {"Id": str(o["Id"]), "Valor": str(o["Valor"])}
+                for o in opcionales
+            ]
+        }
 
     return {
         "FeCabReq": {

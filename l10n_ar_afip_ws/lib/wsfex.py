@@ -58,7 +58,11 @@ def _check_response(response, method):
         code = getattr(err, "ErrCode", None) or 0
         msg = getattr(err, "ErrMsg", "") or ""
         if int(code) != 0 or (msg and msg != "OK"):
-            desc, hint = errors.get_wsfe_hint(code)
+            # Probar primero con catálogo WSFEX (códigos 1500-1700);
+            # si no, caer al genérico WSFE.
+            desc, hint = errors.get_wsfex_hint(code)
+            if hint is None:
+                desc, hint = errors.get_wsfe_hint(code)
             raise errors.WsfeError(
                 code=code, message="WSFEX %s: %s" % (method, msg), hint=hint,
             )

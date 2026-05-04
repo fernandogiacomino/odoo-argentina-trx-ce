@@ -390,7 +390,34 @@ class AccountMove(models.Model):
         cbtes_asoc = self._l10n_ar_get_cbtes_asoc()
         if cbtes_asoc:
             kwargs["cbtes_asoc"] = cbtes_asoc
+        # Opcionales (FCE Id=27 SCA/ADC, Id=2101 CBU, Id=22 cancelación, etc.)
+        # — el método base devuelve [], los módulos hijos lo extienden.
+        opcionales = self._l10n_ar_get_opcionales()
+        if opcionales:
+            kwargs["opcionales"] = opcionales
+        # Política RG 5616 — pago en moneda extranjera.
+        if self.currency_id != self.company_id.currency_id:
+            kwargs["can_mis_mon_ext"] = self._l10n_ar_get_can_mis_mon_ext()
         return payload_lib.build_fecae_request(**kwargs)
+
+    def _l10n_ar_get_opcionales(self):
+        """Hook extensible: devuelve lista de dicts {Id, Valor} para `Opcionales`.
+
+        Base vacío; FCE MiPyME (`account_move_fce.py`) lo extiende para
+        agregar Id=27 (SCA/ADC), Id=2101 (CBU), Id=22 (es cancelación).
+        Otros features pueden agregar más en sus propios overrides.
+        """
+        self.ensure_one()
+        return []
+
+    def _l10n_ar_get_can_mis_mon_ext(self):
+        """Hook extensible: devuelve 'S' o 'N' para CanMisMonExt (RG 5616).
+
+        Base devuelve 'N'; el override de moneda extranjera lo computa según
+        la política de la empresa y la moneda del comprobante.
+        """
+        self.ensure_one()
+        return "N"
 
     # --------------------------------------------------------------
     # Emisión
