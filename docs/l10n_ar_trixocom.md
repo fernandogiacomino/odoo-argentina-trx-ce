@@ -101,7 +101,7 @@ Emite **FA-A, FA-B, FA-C, NC, ND** contra el WS WSFEv1 de AFIP. El sistema:
 - Genera el QR de validación según RG 4291 e incluye en el PDF
 - Persiste CAE, vencimiento, observaciones y XML completo para auditoría
 
-**Validado en producción** — CUIT 20219464100: FA-A, FA-B, NC-A, NC-B, FA-A USD, FA-A con percepción IIBB BA.
+**Validado en producción AFIP**: FA-A, FA-B, NC-A, NC-B, FA-A en USD, FA-A con percepción IIBB BA.
 
 #### 🌍 Factura de exportación (WSFEX)
 
@@ -333,9 +333,8 @@ LGPL-3 · Compatible con Odoo Community
 
 ## 👤 Autor
 
-**Trixocom** · Hector Quiroz Mendiburu · 2026
+**Trixocom** · 2026
 
-## 🔗 Repos
+## 🔗 Repo
 
-- 🌐 **Público / instalable**: [github.com/trixocom/odoo-argentina-trx-ce](https://github.com/trixocom/odoo-argentina-trx-ce)
-- 🛠️ Desarrollo: [github.com/trixocom/l10n_ar_trxinvoice_ce](https://github.com/trixocom/l10n_ar_trxinvoice_ce) (privado)
+- 🌐 [github.com/trixocom/odoo-argentina-trx-ce](https://github.com/trixocom/odoo-argentina-trx-ce)
