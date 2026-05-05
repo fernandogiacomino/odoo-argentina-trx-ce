@@ -1,7 +1,7 @@
 # Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details.
 {
     "name": "Argentina EDI — IVA Simple (4 CSV portal ARCA)",
-    "version": "19.0.0.1.0",
+    "version": "19.0.0.2.0",
     "category": "Accounting/Localizations/Reporting",
     "summary": "Genera los 4 CSV del régimen IVA Simple para upload manual al portal ARCA",
     "description": """
@@ -44,6 +44,7 @@ Diferencias intencionales con enterprise:
     "data": [
         "security/ir.model.access.csv",
         "data/account_account_tag_data.xml",
+        "data/l10n_ar_arca_activity_data.xml",
         "wizards/iva_simple_wizard_view.xml",
     ],
     "installable": True,

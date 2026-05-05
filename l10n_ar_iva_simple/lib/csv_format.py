@@ -43,12 +43,12 @@ def transform_value(value):
     if isinstance(value, (int, float, Decimal)):
         if value < 0:
             value = -value
-        if isinstance(value, float):
-            # Redondeo a 2 decimales con HALF_UP (AFIP).
-            value = float(Decimal(str(value)).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_UP
-            ))
-        return str(value).replace(".", ",")
+        # Forzamos 2 decimales fijos con HALF_UP (spec ARCA: importes
+        # siempre con 2 decimales, ej. "100,00", no "100" ni "100,5").
+        d = Decimal(str(value)).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP,
+        )
+        return format(d, "f").replace(".", ",")
     return str(value)
 
 

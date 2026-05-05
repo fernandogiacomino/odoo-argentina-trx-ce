@@ -14,7 +14,8 @@
                             <field name="date_to"/>
                         </group>
                         <group>
-                            <field name="activity"/>
+                            <field name="activity_id"
+                                   options="{'no_create_edit': True}"/>
                         </group>
                     </group>
                     <group invisible="state != 'done'" string="Archivo generado">

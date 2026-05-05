@@ -148,11 +148,17 @@ def map_purchase_concept(product_type, is_fixed_asset, is_leases):
 
 
 def vat_amount(net_amount, vat_code):
-    """Calcula débito/crédito fiscal aplicando la alícuota al neto.
+    """Calcula débito/crédito fiscal aplicando la alícuota al neto agregado.
 
-    AFIP IVA Simple acepta el cálculo directo (alícuota × neto), no exige
-    sumar línea por línea el VAT real (esa precisión se reserva para el
-    Libro IVA Digital).
+    **Método: cálculo teórico** (alícuota × neto agrupado).
+
+    AFIP IVA Simple acepta este enfoque. La precisión por línea (sumar
+    `tax_line_id` reales via `compute_all`) se reserva para el **Libro
+    IVA Digital** (RG 5616), que sí lo exige y consume otra fuente
+    (`account.ar.vat.line`).
+
+    Diferencia típica entre teórico y real: < $0.05 por agrupación, por
+    redondeo por línea. ARCA acepta ambos.
     """
     pct = VAT_CODE_TO_PERCENT.get(vat_code, 0.0)
     return round(net_amount * pct / 100.0, 2)

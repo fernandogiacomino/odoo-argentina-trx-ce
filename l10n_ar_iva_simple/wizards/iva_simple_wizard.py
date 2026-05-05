@@ -44,16 +44,28 @@ class IvaSimpleWizard(models.TransientModel):
         default=lambda self: fields.Date.today(),
         help="Último día del período.",
     )
-    activity = fields.Char(
-        string="Actividad ARCA",
-        required=True,
-        default="0",
+    activity_id = fields.Many2one(
+        "l10n_ar.arca.activity",
+        string="Actividad ARCA (override)",
         help=(
-            "Código de actividad ARCA del contribuyente (1-3 dígitos). "
-            "Community 19 no expone `l10n_ar_arca_activity_id`, así que "
-            "se ingresa manualmente en el wizard. '0' = sin clasificar."
+            "Actividad ARCA a usar como fallback global. Cadena de prioridad:\n"
+            "  1. Cuenta contable de la línea (account.l10n_ar_arca_activity_id)\n"
+            "  2. Default de la empresa (company.l10n_ar_arca_activity_id)\n"
+            "  3. Este campo del wizard\n"
+            "Si nada matchea, se usa '0' (sin clasificar)."
         ),
+        default=lambda self: self.env.company.l10n_ar_arca_activity_id,
     )
+    # Compatibilidad: campo computado para mostrar el código en el CSV.
+    activity = fields.Char(
+        compute="_compute_activity_code",
+        store=False,
+    )
+
+    @api.depends("activity_id")
+    def _compute_activity_code(self):
+        for rec in self:
+            rec.activity = (rec.activity_id.code or "0")[:3] if rec.activity_id else "0"
 
     # Salida.
     file_name = fields.Char(readonly=True)
@@ -154,8 +166,11 @@ class IvaSimpleWizard(models.TransientModel):
         is_refund = move_type == "out_refund"
         fixed_asset_tag_id = self._get_tag_id("fixed_asset")
 
-        # Query agrupado por (op_type, sujeto, vat_code).
+        # Query agrupado por (account_activity, op_type, sujeto, vat_code).
         # base_lines = aml NO tax_line, con vat_afip_code IN ('0'..'9') via tax_group.
+        # account_activity_code: 3 dígitos de la actividad ARCA asignada a la cuenta
+        # contable (account.account.l10n_ar_arca_activity_id) — si no, NULL → cae al
+        # fallback Python (company → wizard → '0').
         sql = """
             WITH base_lines AS (
                 SELECT
@@ -163,6 +178,7 @@ class IvaSimpleWizard(models.TransientModel):
                     am.partner_id,
                     rprt.code AS partner_resp_code,
                     btg.l10n_ar_vat_afip_code AS vat_code,
+                    LEFT(acc_act.code, 3) AS account_activity_code,
                     EXISTS(
                         SELECT 1 FROM account_account_account_tag aaat
                         WHERE aaat.account_account_id = aml.account_id
@@ -170,6 +186,9 @@ class IvaSimpleWizard(models.TransientModel):
                     ) AS is_fixed_asset
                 FROM account_move_line aml
                 JOIN account_move am ON am.id = aml.move_id
+                LEFT JOIN account_account acc ON acc.id = aml.account_id
+                LEFT JOIN l10n_ar_arca_activity acc_act
+                    ON acc_act.id = acc.l10n_ar_arca_activity_id
                 LEFT JOIN res_partner rp ON rp.id = am.commercial_partner_id
                 LEFT JOIN l10n_ar_afip_responsibility_type rprt
                     ON rprt.id = rp.l10n_ar_afip_responsibility_type_id
@@ -191,11 +210,12 @@ class IvaSimpleWizard(models.TransientModel):
             SELECT
                 vat_code,
                 partner_resp_code,
+                account_activity_code,
                 BOOL_OR(is_fixed_asset) AS is_fixed_asset_grp,
                 SUM(ABS(balance)) AS net_amount
             FROM base_lines
-            GROUP BY vat_code, partner_resp_code
-            ORDER BY vat_code, partner_resp_code
+            GROUP BY vat_code, partner_resp_code, account_activity_code
+            ORDER BY account_activity_code NULLS LAST, vat_code, partner_resp_code
         """
         self.env.cr.execute(sql, {
             "fa_tag_id": fixed_asset_tag_id,
@@ -211,10 +231,12 @@ class IvaSimpleWizard(models.TransientModel):
             op_type = spec.map_sale_operation_type(vat_code, r["is_fixed_asset_grp"])
             is_exempt = (op_type == spec.OP_TYPE_EXENTA)
             buyer = "" if is_exempt else spec.map_responsibility_to_buyer_type(r["partner_resp_code"])
+            # Cadena de fallback: cuenta contable → company default → wizard
+            activity_code = r.get("account_activity_code") or self._fallback_activity_code()
 
             if is_refund:
                 rows.append({
-                    "Actividad": self.activity,
+                    "Actividad": activity_code,
                     "Tipo de Operacion": op_type,
                     "Codigo de Alicuota": "" if is_exempt else vat_code,
                     "Monto Neto Gravado": "" if is_exempt else net,
@@ -223,7 +245,7 @@ class IvaSimpleWizard(models.TransientModel):
                 })
             else:
                 rows.append({
-                    "Actividad": self.activity,
+                    "Actividad": activity_code,
                     "Tipo de Operacion": op_type,
                     "Tipo de sujeto comprador": buyer,
                     "Codigo de Alicuota": "" if is_exempt else vat_code,
@@ -233,6 +255,16 @@ class IvaSimpleWizard(models.TransientModel):
                     "Monto Neto Exento o No Gravado": net if is_exempt else "",
                 })
         return rows
+
+    def _fallback_activity_code(self):
+        """Devuelve el código de actividad ARCA con la cadena de fallback:
+        wizard.activity_id → company.l10n_ar_arca_activity_id → '0'."""
+        if self.activity_id and self.activity_id.code:
+            return self.activity_id.code[:3]
+        company_act = self.company_id.l10n_ar_arca_activity_id
+        if company_act and company_act.code:
+            return company_act.code[:3]
+        return "0"
 
     # ------------------------------------------------------------------
     # Compras
