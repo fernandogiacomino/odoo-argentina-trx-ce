@@ -22,7 +22,7 @@
 
 ## 🎯 Visión general
 
-**l10n_ar_trixocom** es un paquete completo de módulos que reemplaza la localización Argentina de Odoo Enterprise. Permite operar 100% legalmente en Argentina sin licencia Enterprise.
+**l10n_ar_trixocom** es un paquete completo de módulos que extiende Odoo 19 Community con todas las funcionalidades necesarias para operar fiscalmente en Argentina.
 
 **Cubre todo el ciclo fiscal:**
 - ✅ Emisión electrónica de comprobantes contra AFIP/ARCA
@@ -32,6 +32,19 @@
 - ✅ Percepciones IIBB de las 4 jurisdicciones más facturadas
 - ✅ Contingencia con CAEA cuando AFIP cae
 - ✅ Auditoría completa de todas las llamadas a los WS
+
+### Lo que aporta sobre Odoo Community
+
+Odoo Community trae el módulo base `l10n_ar` con el plan de cuentas, tipos de comprobante y la condición frente a IVA — pero **no incluye** emisión electrónica ni los reportes que la operativa fiscal argentina requiere. Este paquete agrega:
+
+- **Emisión electrónica completa** contra los WS oficiales WSAA, WSFEv1, WSFEX, WSCDC, CAEA
+- **QR de validación AFIP** en el PDF según RG 4291
+- **Reportes regulatorios**: Libro IVA Digital RG 5616, IVA Simple del portal ARCA, cotejo Mis Comprobantes
+- **Padrones IIBB de 4 jurisdicciones** con aplicación automática de percepciones
+- **Régimen de contingencia CAEA** con solicitud, fallback y rendición automatizadas
+- **POS con factura electrónica** emitida en el momento del cobro
+- **Cotización USD/EUR diaria** automática desde fuente oficial
+- **Auditoría WS**: log completo de cada llamada a AFIP/ARCA con XML req/resp
 
 ---
 
@@ -154,7 +167,7 @@ Wizard que genera los **5 archivos TXT** oficiales que pide AFIP por mes, en un 
 
 #### 💼 IVA Simple (4 CSV ARCA)
 
-Réplica community de `l10n_ar_reports_simple` Enterprise. Genera los 4 CSV del portal IVA Simple:
+Genera los 4 archivos CSV que ARCA pide en su portal de IVA Simple:
 
 - DEBITO + REST_DEBITO (ventas)
 - CREDITO + REST_CREDITO (compras)

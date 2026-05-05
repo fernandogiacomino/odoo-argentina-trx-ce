@@ -102,17 +102,23 @@ code{background:#f3f4f6;padding:1px 6px;border-radius:3px;font-size:12px;color:#
 </div>
 
 <h2 id="vision">1. Visión general</h2>
-<p><strong>l10n_ar_trixocom</strong> es un paquete completo de módulos para Odoo 19 Community que reemplaza la localización Argentina de Odoo Enterprise. Permite operar 100% legalmente en Argentina sin licencia Enterprise.</p>
+<p><strong>l10n_ar_trixocom</strong> es un paquete completo de módulos que extiende Odoo 19 Community con todas las funcionalidades necesarias para operar fiscalmente en Argentina: emisión electrónica AFIP/ARCA, padrones provinciales, contingencia, reportes regulatorios y auditoría.</p>
 
 <div class="success">
 <strong>Cubre todo el ciclo fiscal:</strong> emisión de comprobantes electrónicos contra AFIP/ARCA → impresión PDF con QR oficial → verificación de facturas recibidas → reportes fiscales mensuales → percepciones IIBB de las 4 jurisdicciones más facturadas (BA, CABA, Santa Fe, Córdoba) → contingencia con CAEA cuando AFIP cae → auditoría completa de todas las llamadas a los WS.
 </div>
 
-<h3>¿Por qué este paquete?</h3>
+<h3>Lo que aporta sobre Odoo Community</h3>
+<p>Odoo Community trae el módulo base <code>l10n_ar</code> con el plan de cuentas, tipos de comprobante y la condición frente a IVA — pero <strong>no incluye</strong> emisión electrónica ni los reportes que la operativa fiscal argentina requiere. Este paquete agrega:</p>
 <ul class="feature-list">
-<li>Odoo Enterprise cobra licencia por usuario y la localización argentina viene atada</li>
-<li>Las alternativas community (ingadhoc, OCA) no estaban actualizadas a Odoo 19</li>
-<li>Necesitábamos features que enterprise no cubre: Mis Comprobantes, IVA Simple, ARBA WS automático, FCE MiPyME</li>
+<li><strong>Emisión electrónica completa</strong> contra los WS oficiales WSAA, WSFEv1, WSFEX, WSCDC, CAEA</li>
+<li><strong>QR de validación AFIP</strong> en el PDF según RG 4291</li>
+<li><strong>Reportes regulatorios</strong>: Libro IVA Digital RG 5616, IVA Simple del portal ARCA, cotejo Mis Comprobantes</li>
+<li><strong>Padrones IIBB de 4 jurisdicciones</strong> con aplicación automática de percepciones según el padrón vigente</li>
+<li><strong>Régimen de contingencia CAEA</strong> con solicitud, fallback y rendición automatizadas</li>
+<li><strong>POS con factura electrónica</strong> emitida en el momento del cobro</li>
+<li><strong>Cotización USD/EUR diaria</strong> automática desde fuente oficial</li>
+<li><strong>Auditoría WS</strong>: log completo de cada llamada a AFIP/ARCA con XML req/resp para forensic</li>
 </ul>
 
 <h2 id="mapa">2. Mapa de módulos</h2>
@@ -299,7 +305,7 @@ code{background:#f3f4f6;padding:1px 6px;border-radius:3px;font-size:12px;color:#
     </div>
     <span class="tag t-ok">Producción</span>
   </div>
-  <p>Réplica community de <code>l10n_ar_reports_simple</code> de Enterprise. Genera los 4 CSV que ARCA pide en su portal de IVA Simple:</p>
+  <p>Genera los 4 archivos CSV que ARCA pide en su portal de IVA Simple:</p>
   <ul class="feature-list">
     <li>DEBITO + REST_DEBITO (ventas)</li>
     <li>CREDITO + REST_CREDITO (compras)</li>
