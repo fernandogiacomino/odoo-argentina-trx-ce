@@ -339,7 +339,10 @@ class AccountMove(models.Model):
         de IVA compras.
         """
         # Filtramos las que necesitan validación previa.
-        to_check = self.filtered(self._l10n_ar_needs_pre_post_verification)
+        # OJO: `filtered(bound_method)` llama bound_method(rec), pero como
+        # self._l10n_ar_needs_pre_post_verification ya está bindeado a self,
+        # Python lo pasa como (self, rec) → TypeError. Usar lambda explícita.
+        to_check = self.filtered(lambda m: m._l10n_ar_needs_pre_post_verification())
         for move in to_check:
             try:
                 move._l10n_ar_verify_on_arca()
