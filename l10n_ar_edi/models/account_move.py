@@ -166,31 +166,52 @@ class AccountMove(models.Model):
         return float(rate)
 
     def _l10n_ar_get_condicion_iva_receptor_id(self):
-        """Código AFIP de condición IVA del receptor (RG 5616).
+        """Código AFIP de `CondicionIVAReceptorId` (RG 5616).
 
-        Mapeo por responsabilidad AFIP del partner. Los códigos oficiales son:
-            1=RI, 4=Exento, 5=Consumidor Final, 6=Monotributo, 7=SujetoNoCategorizado,
-            8=Proveedor del Exterior, 9=Cliente del Exterior, 10=IVA Liberado,
-            13=Monotributo Social, 15=IVA No Alcanzado, ...
+        Catálogo oficial (vía FEParamGetCondicionIvaReceptor, manual WSFEv1
+        v4.3 RG-4291, validado 2026-05-13):
+
+            Id | Descripción                                     | Cmp_Clase
+            ---+-------------------------------------------------+----------
+             1 | IVA Responsable Inscripto                       | A / M / C
+             4 | IVA Sujeto Exento                               | B / C
+             5 | Consumidor Final                                | B / C
+             6 | Responsable Monotributo                         | A / M / C
+             7 | Sujeto No Categorizado                          | B / C
+             8 | Proveedor del Exterior                          | B / C
+             9 | Cliente del Exterior                            | B / C
+            10 | IVA Liberado – Ley N° 19.640                    | B / C
+            13 | Monotributista Social                           | A / M / C
+            15 | IVA No Alcanzado                                | B / C
+            16 | Monotributo Trabajador Independiente Promovido  | A / M / C
+
+        IMPORTANTE — deadline RG 5616: a partir del **01/06/2026** AFIP
+        rechaza las solicitudes de emisión sin este dato. Por eso el helper
+        siempre devuelve un entero (default 5 = Consumidor Final), nunca
+        None. Si el partner no tiene `l10n_ar_afip_responsibility_type_id`
+        asignado, asumimos CF.
         """
         self.ensure_one()
         p = self.partner_id
         resp = p.l10n_ar_afip_responsibility_type_id
         if not resp or not resp.code:
             return 5  # Consumidor Final por defecto
-        # El code de l10n_ar ya es el código AFIP de responsabilidad, pero
-        # el código de CondicionIVAReceptorId es otro catálogo. AFIP publica
-        # un CSV con la correspondencia — acá pongo los 5-6 casos frecuentes.
+        # El code de l10n_ar es el código AFIP de RESPONSABILIDAD (1=RI,
+        # 4=Exento, etc.) y CondicionIVAReceptorId resulta ser EL MISMO
+        # número en la mayoría de los casos. Mantenemos el mapeo explícito
+        # como salvaguarda por si AFIP reasigna IDs y por documentación.
         resp_to_cond = {
             "1": 1,    # IVA Responsable Inscripto
             "4": 4,    # IVA Sujeto Exento
             "5": 5,    # Consumidor Final
             "6": 6,    # Responsable Monotributo
+            "7": 7,    # Sujeto No Categorizado
             "8": 8,    # Proveedor del Exterior
             "9": 9,    # Cliente del Exterior
             "10": 10,  # IVA Liberado - Ley 19.640
             "13": 13,  # Monotributista Social
             "15": 15,  # IVA no alcanzado
+            "16": 16,  # Monotributo Trabajador Independiente Promovido (Dto 444/2023)
         }
         return resp_to_cond.get(resp.code, 5)
 

@@ -162,8 +162,12 @@ def build_fecae_request(
     }
 
     if cond_iva_receptor_id is not None:
-        # RG 5616 lo hace obligatorio desde 2024. No lo seteamos si vino None
-        # para no romper en homologación si AFIP todavía no lo exige para la cuenta.
+        # RG 5616: campo opcional hasta 31/05/2026, OBLIGATORIO desde
+        # 01/06/2026. El caller debería pasarlo siempre. Si vino None lo
+        # omitimos del payload (compat con cuentas que todavía no migraron).
+        # Cuando pase la deadline el helper de account.move siempre lo
+        # devuelve con valor (default 5=CF), así que en práctica nunca
+        # debería caer en None desde el flujo normal de Odoo.
         det["CondicionIVAReceptorId"] = int(cond_iva_receptor_id)
 
     if alic_iva:

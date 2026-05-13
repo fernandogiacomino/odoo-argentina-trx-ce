@@ -244,14 +244,45 @@ WSFE_HINTS = {
     ),
     10074: (
         "CondicionIVAReceptorId inválido",
-        "Catálogo: 1=RI, 4=Exento, 5=CF, 6=Monotributo, 8=Prov.Exterior, "
-        "9=Cliente.Exterior, 10=IVA Liberado, 13=Monotributo Social, "
-        "15=No Alcanzado.",
+        "Catálogo oficial (FEParamGetCondicionIvaReceptor, v4.3): 1=RI, "
+        "4=Exento, 5=CF, 6=Monotributo, 7=Sujeto No Categorizado, "
+        "8=Prov.Exterior, 9=Cliente.Exterior, 10=IVA Liberado, "
+        "13=Monotributo Social, 15=No Alcanzado, "
+        "16=Monotributo Trabajador Indep. Promovido.",
     ),
     10154: (
         "Condición IVA del receptor no compatible con el tipo de comprobante",
-        "Por ej. una FA-A no puede emitirse a Consumidor Final. Verificá "
-        "CondicionIVAReceptorId y el tipo letra del comprobante.",
+        "Cmp_Clase: A/M/C admite Id 1, 6, 13, 16. B/C admite 4, 5, 7, 8, "
+        "9, 10, 15. Por ej. una FA-A no puede emitirse a Consumidor Final.",
+    ),
+    10242: (
+        "CondicionIVAReceptor obligatorio o valor no válido",
+        "RG 5616: desde 06/04/2025 opcional, OBLIGATORIO desde "
+        "01/06/2026. Asegurate de mandar CondicionIVAReceptorId con valor "
+        "del catálogo (ver código 10074). Llamar FEParamGetCondicionIvaReceptor "
+        "para obtener la tabla actualizada.",
+    ),
+
+    # Códigos nuevos publicados con la v4.3 del manual (RG-4291), Alta
+    # del 14/05/2026 22:00hs según evento WSFE Code 43 — sin descripción
+    # textual oficial al día del commit; los hints son inferidos del
+    # contexto. Cuando salga el manual definitivo, revisar.
+    10247: (
+        "Validación cruzada CondicionIVAReceptor / tipo comprobante (v4.3)",
+        "Nuevo código de alta el 14/05/2026 — verifica que el "
+        "CondicionIVAReceptorId sea consistente con Cmp_Clase del tipo "
+        "de comprobante y con DocTipo del receptor. Revisar manual v4.3.",
+    ),
+    10248: (
+        "Combinación de parámetros inválida (v4.3)",
+        "Nuevo código de alta el 14/05/2026 — chequear combinación "
+        "DocTipo + DocNro + CondicionIVAReceptorId. Si el receptor tiene "
+        "CUIT, AFIP exige consistencia con padrón. Manual v4.3 pendiente.",
+    ),
+    10249: (
+        "Validación adicional v4.3",
+        "Nuevo código de alta el 14/05/2026 — sin descripción oficial. "
+        "Re-leer el manual v4.3 cuando esté disponible y refinar este hint.",
     ),
 
     # ---- Iva detalle ----
@@ -279,6 +310,27 @@ WSFE_HINTS = {
     ),
 
     # ---- Específicos CAEA ----
+    # Códigos nuevos de alta el 14/05/2026 22hs (evento WSFE Code 43):
+    # 827, 828, 829. Sin descripción oficial al día del commit; cuando
+    # salga el manual definitivo, ajustar los hints.
+    827: (
+        "Validación CAEA v4.3 — código 827",
+        "Nuevo código de alta el 14/05/2026 para CAEA. Sin descripción "
+        "oficial al momento del commit. Posiblemente: validación de "
+        "ventana de rendición o consistencia período/orden ampliada. "
+        "Revisar manual WSFEv1 v4.3 RG-4291 cuando esté disponible.",
+    ),
+    828: (
+        "Validación CAEA v4.3 — código 828",
+        "Nuevo código de alta el 14/05/2026 para CAEA. Sin descripción "
+        "oficial. Revisar manual v4.3 y refinar.",
+    ),
+    829: (
+        "Validación CAEA v4.3 — código 829",
+        "Nuevo código de alta el 14/05/2026 para CAEA. Sin descripción "
+        "oficial. Revisar manual v4.3 y refinar.",
+    ),
+
     15000: (
         "Período/Orden inválido para CAEA",
         "Período = YYYYMM. Orden = 1 (1° quincena) o 2 (2° quincena).",
