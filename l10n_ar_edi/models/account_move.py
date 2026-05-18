@@ -812,15 +812,25 @@ class AccountMove(models.Model):
     def _post(self, soft=True):
         """Después del post estándar, dispara CAE si el journal es electrónico.
 
-        Si AFIP rechaza, el post *ya fue hecho* y el move queda 'posted'
-        sin CAE. Esto deja el move en un estado inconsistente; mejor
-        pedir CAE *antes* de postear. Sin embargo el flujo Odoo clásico
-        es postear → luego emitir, y hacer lo contrario requiere mover
-        la numeración, tributos, etc. Para MVP: pedir CAE después, pero
-        si falla levantar y dejar que el usuario vea el error. El move
-        queda posted pero con `l10n_ar_afip_result='R'` y XML guardado.
+        Si AFIP rechaza el CAE, **revertimos el post** dejando el move
+        en estado 'draft' otra vez. Antes (en el MVP) el move quedaba
+        'posted' sin CAE — un estado inconsistente que confundía al
+        operador (la factura aparecía "Registrada" sin tener validez
+        fiscal). Ahora el flujo es atómico: o queda posted+CAE, o
+        vuelve a draft con error claro para que el operador corrija
+        y reintente.
+
+        Errores comunes que recuperamos:
+          * AFIP [10016] Número de comprobante no es el próximo a
+            autorizar (típico cuando se rolled-back un intento previo
+            y AFIP ya consumió el número).
+          * AFIP [10018] CAE vencido.
+          * AFIP [10016] Cuit invalido / no autorizado.
+          * AFIP errores de red / timeout.
         """
         posted = super()._post(soft=soft)
+        moves_to_revert = self.env["account.move"]
+        errors = []
         for move in posted:
             if move.country_code != "AR":
                 continue
@@ -834,10 +844,47 @@ class AccountMove(models.Model):
                 continue
             try:
                 move._l10n_ar_request_cae()
-            except UserError:
-                # UserError se burbujea — el usuario la ve y puede
-                # corregir y reintentar con el botón manual.
-                raise
+            except UserError as exc:
+                moves_to_revert |= move
+                errors.append((move.display_name or str(move.id), str(exc)))
+                _logger.warning(
+                    "AFIP rechazó CAE para %s — reverting to draft. %s",
+                    move.display_name, exc,
+                )
+            except Exception as exc:  # noqa: BLE001
+                moves_to_revert |= move
+                errors.append((move.display_name or str(move.id), str(exc)))
+                _logger.exception(
+                    "Error inesperado pidiendo CAE para %s — reverting to draft.",
+                    move.display_name,
+                )
+
+        if moves_to_revert:
+            # Revertimos los moves que no consiguieron CAE: button_draft()
+            # resetea state=draft, libera asientos contables y devuelve
+            # el número al pool de la secuencia. AFIP no autorizó nada,
+            # así que no hay nada que perder.
+            for m in moves_to_revert:
+                try:
+                    m.button_draft()
+                except Exception:  # noqa: BLE001
+                    _logger.exception(
+                        "No se pudo revertir a borrador %s — quedará "
+                        "posted sin CAE (estado inconsistente).",
+                        m.display_name,
+                    )
+
+            # Construir un UserError consolidado para que el operador
+            # vea TODOS los errores juntos (típico: misma causa en
+            # varias facturas batched).
+            msgs = "\n\n".join("• %s\n%s" % (n, e) for n, e in errors)
+            raise UserError(_(
+                "AFIP rechazó el CAE para %(count)d factura(s). "
+                "Las revertimos al estado borrador para que puedas "
+                "corregir y reintentar:\n\n%(msgs)s",
+                count=len(moves_to_revert),
+                msgs=msgs,
+            ))
         return posted
 
 
