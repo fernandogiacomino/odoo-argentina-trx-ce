@@ -448,6 +448,37 @@ class AccountMove(models.Model):
         for move in self:
             move._l10n_ar_request_cae()
 
+    def action_l10n_ar_retry_post_cae(self):
+        """Botón "Reintentar CAE AFIP" para facturas que quedaron
+        ``posted`` SIN CAE.
+
+        Caso típico (Luis Heredia / S00005): la factura se generó
+        desde el flujo de adhesión automática, AFIP no la autorizó
+        (típicamente por ``l10n_latam_document_type_id`` faltante o
+        partner sin categoría fiscal), y quedó en estado fantasma:
+        ``state=posted``, ``name=False``, ``l10n_ar_afip_auth_code=False``.
+
+        Estrategia: pasar a draft, garantizar que tenga doc type (lo
+        recalcula el compute si ahora hay categoría fiscal en el
+        partner), y reposterar — lo cual dispara el flow normal de
+        emisión AFIP.
+
+        Si tras el reintento AFIP sigue rechazando, queda en draft
+        (gracias al fix del _post override): el operador ve el
+        error en el chatter y puede investigar antes de reintentar
+        otra vez.
+        """
+        for move in self:
+            if move.l10n_ar_afip_auth_code:
+                raise UserError(_(
+                    "La factura %s ya tiene CAE %s. No corresponde "
+                    "reintentar."
+                ) % (move.display_name, move.l10n_ar_afip_auth_code))
+            if move.state == 'posted':
+                move.button_draft()
+            move.action_post()
+        return True
+
     def action_l10n_ar_validar_arca(self):
         """Wrapper UX para `action_post()` en facturas electrónicas.
 

@@ -74,11 +74,16 @@
                 <!-- 4) Reintento manual unificado: cubre los dos casos
                         de fallo — posted SIN CAE (timeout/red durante
                         emisión) y posted CON Resultado='R' (rechazado
-                        por AFIP). Ambos llevan al mismo handler. -->
-                <button name="action_l10n_ar_request_cae"
+                        por AFIP). Ahora llama a action_l10n_ar_retry_post_cae
+                        que pasa a draft + repostea — más robusto que solo
+                        pedir CAE, porque también recalcula compute fields
+                        que pudieron faltar (l10n_latam_document_type_id si
+                        el partner no tenía categoría fiscal). -->
+                <button name="action_l10n_ar_retry_post_cae"
                         type="object"
                         string="Reintentar AFIP/ARCA"
                         class="btn-warning"
+                        confirm="¿Reintentar la emisión AFIP? La factura se pasa a borrador y se vuelve a postear para pedir CAE. Si AFIP sigue rechazando, queda en draft con el error en el chatter."
                         invisible="state != 'posted'
                                    or not l10n_ar_is_electronic_invoice
                                    or (l10n_ar_afip_auth_code and l10n_ar_afip_result != 'R')"
