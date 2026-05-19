@@ -1,0 +1,4 @@
+[submodule "vendor/afip_webservice_monitor"]
+	path = vendor/afip_webservice_monitor
+	url = https://github.com/trixocom/afip_webservice_monitor.git
+	branch = master
