@@ -1,7 +1,7 @@
 # Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details.
 {
     "name": "Argentina EDI — Consulta Padrón AFIP",
-    "version": "19.0.0.1.0",
+    "version": "19.0.0.1.1",
     "category": "Accounting/Localizations/EDI",
     "summary": "Autocompleta partner desde el WS Padrón AFIP (constancia de inscripción)",
     "description": """

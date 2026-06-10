@@ -45,10 +45,13 @@ _AFIP_CODE_BY_TIPO_CLAVE = {
 #: Multiplicadores para el dígito verificador del CUIT.
 _CUIT_CHECKSUM_FACTORS = (5, 4, 3, 2, 7, 6, 5, 4, 3, 2)
 
-#: AFIP idProvincia (int) → `res.country.state.code` (letra) en `l10n_ar`.
-#: El padrón A13 devuelve `idProvincia` numérico; en v19 `l10n_ar` los
-#: states de AR usan `code` de 1 letra como código AFIP. Mapping oficial
-#: tomado de la tabla AFIP "Códigos de provincia".
+#: AFIP idProvincia (int) → `res.country.state.code` (letra ISO 3166-2:AR)
+#: en `l10n_ar`. El padrón A13/A5 devuelve `idProvincia` numérico según
+#: SUPA. Tabla oficial AFIP "Código de provincias":
+#: https://www.afip.gob.ar/inversiones-bienes-uso/documentos/codigo-provincia.pdf
+#: Verificada además contra el ejemplo del manual ws_sr_padron_a13 v1.2
+#: (11 = SAN LUIS) y respuesta real del WS prod (12 = SANTA FE).
+#: OJO: el orden NO es alfabético — no "corregir" ordenando.
 _AFIP_IDPROV_TO_STATE_CODE = {
     0: "C",   # Ciudad Autónoma de Buenos Aires
     1: "B",   # Buenos Aires
@@ -56,24 +59,24 @@ _AFIP_IDPROV_TO_STATE_CODE = {
     3: "X",   # Córdoba
     4: "W",   # Corrientes
     5: "E",   # Entre Ríos
-    6: "P",   # Formosa
-    7: "Y",   # Jujuy
-    8: "L",   # La Pampa
-    9: "F",   # La Rioja
-    10: "M",  # Mendoza
-    11: "N",  # Misiones
-    12: "Q",  # Neuquén
-    13: "R",  # Río Negro
-    14: "A",  # Salta
-    15: "J",  # San Juan
-    16: "D",  # San Luis
-    17: "Z",  # Santa Cruz
-    18: "S",  # Santa Fe
-    19: "G",  # Santiago del Estero
-    20: "V",  # Tierra del Fuego
-    21: "T",  # Tucumán
-    22: "H",  # Chaco
-    23: "U",  # Chubut
+    6: "Y",   # Jujuy
+    7: "M",   # Mendoza
+    8: "F",   # La Rioja
+    9: "A",   # Salta
+    10: "J",  # San Juan
+    11: "D",  # San Luis
+    12: "S",  # Santa Fe
+    13: "G",  # Santiago del Estero
+    14: "T",  # Tucumán
+    15: "H",  # Chaco
+    16: "U",  # Chubut
+    17: "P",  # Formosa
+    18: "N",  # Misiones
+    19: "Q",  # Neuquén
+    20: "L",  # La Pampa
+    21: "R",  # Río Negro
+    22: "Z",  # Santa Cruz
+    23: "V",  # Tierra del Fuego
 }
 
 #: Aliases por nombre (fallback si AFIP no manda idProvincia o manda 0
@@ -427,11 +430,13 @@ class ResPartner(models.Model):
             vals["zip"] = str(dom["codPostal"]).strip()
 
         # state: el WS da `idProvincia` (int) y `descripcionProvincia`.
-        # En `l10n_ar` v19 el state.code es la letra AFIP (A, B, C, ...).
-        # Mapeamos idProvincia → letra; si no, fallback por nombre con
-        # aliases para casos típicos (CABA sin tildes, etc.).
+        # En `l10n_ar` v19 el state.code es la letra ISO (A, B, C, ...).
+        # Mapeamos idProvincia → letra y, si AFIP también manda
+        # `descripcionProvincia` (1..1 según manual A13), resolvemos por
+        # nombre como cross-check: ante discrepancia gana la descripción
+        # (el texto es inequívoco; el id depende de esta tabla local).
         if ar and (force_overwrite or not self.state_id):
-            state = self.env["res.country.state"].browse()
+            State = self.env["res.country.state"]
             prov_id = dom.get("idProvincia")
             try:
                 prov_id_int = int(prov_id) if prov_id is not None else None
@@ -441,26 +446,39 @@ class ResPartner(models.Model):
                 _AFIP_IDPROV_TO_STATE_CODE.get(prov_id_int)
                 if prov_id_int is not None else None
             )
+            state_by_id = State.browse()
             if letter:
-                state = self.env["res.country.state"].search([
+                state_by_id = State.search([
                     ("country_id", "=", ar.id),
                     ("code", "=", letter),
                 ], limit=1)
-            if not state and dom.get("descripcionProvincia"):
+            state_by_name = State.browse()
+            if dom.get("descripcionProvincia"):
                 desc = str(dom["descripcionProvincia"]).strip()
                 # 1) alias literal AFIP→l10n_ar
                 alias = _PROV_NAME_ALIASES.get(desc.upper())
                 if alias:
-                    state = self.env["res.country.state"].search([
+                    state_by_name = State.search([
                         ("country_id", "=", ar.id),
                         ("name", "=", alias),
                     ], limit=1)
                 # 2) match insensible
-                if not state:
-                    state = self.env["res.country.state"].search([
+                if not state_by_name:
+                    state_by_name = State.search([
                         ("country_id", "=", ar.id),
                         ("name", "=ilike", desc),
                     ], limit=1)
+            state = state_by_id or state_by_name
+            if state_by_id and state_by_name and state_by_id != state_by_name:
+                _logger.warning(
+                    "Padrón AFIP: discrepancia provincia para CUIT %s: "
+                    "idProvincia=%s → %s pero descripcionProvincia=%r → %s. "
+                    "Se usa la descripción; revisar tabla "
+                    "_AFIP_IDPROV_TO_STATE_CODE.",
+                    self.vat, prov_id, state_by_id.name,
+                    dom.get("descripcionProvincia"), state_by_name.name,
+                )
+                state = state_by_name
             if state:
                 vals["state_id"] = state.id
 
