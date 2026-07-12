@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Botón técnico (solo modo debug / usuarios técnicos) en el diario:
+         consultar último autorizado AFIP y sincronizar numeración. -->
+    <record id="view_account_journal_form_afip_seq_sync" model="ir.ui.view">
+        <field name="name">account.journal.form.afip.seq.sync</field>
+        <field name="model">account.journal</field>
+        <field name="inherit_id" ref="account.view_account_journal_form"/>
+        <field name="arch" type="xml">
+            <div name="button_box" position="inside">
+                <button name="action_l10n_ar_afip_check_last_authorized"
+                        type="object"
+                        class="oe_stat_button"
+                        icon="fa-refresh"
+                        groups="base.group_no_one"
+                        invisible="type != 'sale'">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">AFIP</span>
+                        <span class="o_stat_text">Últ. autorizado</span>
+                    </div>
+                </button>
+            </div>
+        </field>
+    </record>
+</odoo>

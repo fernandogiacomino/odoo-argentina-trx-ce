@@ -1,0 +1,21 @@
+// Ticket termico legible: sin grises, ancho completo del papel.
+.pos-receipt {
+    .pos-receipt-logo { filter: grayscale(1) contrast(400%) !important; }
+    * { opacity: 1 !important; }
+    .trx-recline { margin: 4px 0; }
+    .trx-recline-desc { line-height: 1.15; }
+    .trx-recline-head { border-bottom: 1px solid #000; padding-bottom: 2px; margin-bottom: 4px; }
+}
+@media print {
+    .render-container .pos-receipt {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding-left: 3px !important;
+        padding-right: 3px !important;
+        font-size: 14px !important;
+        color: #000 !important;
+    }
+    .render-container .pos-receipt * { color: #000 !important; opacity: 1 !important; }
+    .render-container .pos-receipt .pos-receipt-logo { filter: grayscale(1) contrast(400%) !important; }
+}

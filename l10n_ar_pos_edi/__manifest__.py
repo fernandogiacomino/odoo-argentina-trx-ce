@@ -1,7 +1,7 @@
 # Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details.
 {
     "name": "Argentina EDI — Punto de Venta + Factura Electrónica",
-    "version": "19.0.0.1.3",
+    "version": "19.0.0.1.8",
     "category": "Accounting/Localizations/Point of Sale",
     "summary": "Emite FA-A/B/C electrónica desde POS con QR RG 4291 y CAE en el ticket",
     "description": """

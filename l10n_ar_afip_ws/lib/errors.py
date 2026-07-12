@@ -150,10 +150,16 @@ WSFE_HINTS = {
         "Si recién se inscribió, esperá 24h.",
     ),
     10016: (
-        "Fecha del comprobante fuera del rango permitido",
-        "AFIP acepta ±5 días de la fecha actual para Servicios y ±10 días "
-        "para Productos. Si la factura es muy vieja, hay que regularizar "
-        "con FECAESinMovimientoInformar.",
+        "El número o la fecha del comprobante no se corresponde con el "
+        "próximo a autorizar",
+        "Dos causas posibles. (a) NÚMERO: AFIP ya consumió ese número — pasa "
+        "cuando un pedido de CAE salió pero la transacción de Odoo se "
+        "reintentó/abortó después. Llamá FECompUltimoAutorizado(PtoVta, "
+        "CbteTipo) y compará; si el comprobante que AFIP tiene en ese número "
+        "es el tuyo (FECompConsultar), adoptá ese CAE en lugar de pedir uno "
+        "nuevo. (b) FECHA: AFIP acepta ±5 días de la fecha actual para "
+        "Servicios y ±10 días para Productos; si la factura es muy vieja hay "
+        "que regularizar con FECAESinMovimientoInformar.",
     ),
     10017: (
         "Tipo de comprobante no autorizado para ese POS",

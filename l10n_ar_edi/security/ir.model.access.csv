@@ -1,2 +1,4 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_l10n_ar_csr_wizard_account_manager,l10n_ar.csr.wizard account.manager,model_l10n_ar_csr_wizard,account.group_account_manager,1,1,1,1
+access_l10n_ar_afip_seq_sync_wizard_manager,l10n_ar.afip.seq.sync.wizard manager,model_l10n_ar_afip_seq_sync_wizard,account.group_account_manager,1,1,1,1
+access_l10n_ar_afip_seq_sync_wizard_line_manager,l10n_ar.afip.seq.sync.wizard.line manager,model_l10n_ar_afip_seq_sync_wizard_line,account.group_account_manager,1,1,1,1

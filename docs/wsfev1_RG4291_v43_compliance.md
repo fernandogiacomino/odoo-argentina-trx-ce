@@ -102,7 +102,7 @@ Después del 01/06/2026 podemos volver a este doc y:
 
 ## 5. Verificaciones que querría tener hechas pre-01/06/2026
 
-- [ ] **Smoke en demo19 prod** confirmando que una factura B a CF emite limpia (debe pasar `CondicionIVAReceptorId=5`).
+- [ ] **Smoke contra AFIP producción** confirmando que una factura B a CF emite limpia (debe pasar `CondicionIVAReceptorId=5`).
 - [ ] **Smoke con partner código 16** (Monotributo Promovido) → emitir FA-A → verificar que el payload contiene `CondicionIVAReceptorId=16`.
 - [ ] **Smoke negativo**: forzar mismatch (FA-A a CF Id=5) y verificar que devuelve **10154**, no un genérico.
 - [ ] **Verificar comportamiento contra el nuevo entorno post-14/05/2026 22hs** — emitir un comprobante test y revisar si aparecen los códigos 10247-9 con `Msg` legible.

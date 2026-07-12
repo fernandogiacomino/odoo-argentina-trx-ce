@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates id="template" xml:space="preserve">
+    <t t-name="l10n_ar_pos_edi.ReceiptHeader"
+       t-inherit="point_of_sale.ReceiptHeader"
+       t-inherit-mode="extension">
+        <!-- Reemplaza "Ticket <ref>" por el nombre del comprobante (FA-A ...)
+             cuando la venta esta facturada electronicamente. Arriba de las lineas. -->
+        <xpath expr="//span[hasclass('pos-receipt-vat')]" position="replace">
+            <span class="pos-receipt-vat">
+                <t t-if="arHdr.name">
+                    <span class="pos-ar-doc-name"
+                          style="font-size: 18px; font-weight: bold;"
+                          t-out="arHdr.name"/>
+                </t>
+                <t t-else="">
+                    <span class="ticket-name-prefix">
+                        <t t-if="order.config._IS_VAT"> VAT </t>
+                        Ticket
+                    </span>
+                    <t t-out="order.pos_reference"/>
+                </t>
+            </span>
+        </xpath>
+        <!-- Datos de la empresa arriba, justo debajo del logo -->
+        <xpath expr="//img[hasclass('pos-receipt-logo')]" position="after">
+            <div class="trx-company-info text-center pt-2" style="font-size: 80%; line-height: 1.25;">
+                <div class="fw-bolder" t-out="order.config.name"/>
+                <div>
+                    <t t-if="order.company.street" t-out="order.company.street"/><t t-if="order.company.city" t-out="', ' + order.company.city"/><t t-if="order.company.state_id?.code" t-out="', ' + order.company.state_id.code"/><t t-if="order.company.zip" t-out="', ' + order.company.zip"/>
+                </div>
+                <div t-if="order.company.vat"><t t-out="order.company.country_id?.vat_label or 'CUIT'"/>: <t t-out="order.company.vat"/></div>
+                <div t-if="order.company.phone">Tel.: <span dir="ltr" t-out="order.company.phone"/></div>
+                <div t-if="order.company.email" t-out="order.company.email"/>
+            </div>
+        </xpath>
+    </t>
+</templates>

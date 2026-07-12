@@ -1,7 +1,7 @@
 # Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details.
 {
     "name": "Argentina EDI — Base",
-    "version": "19.0.0.1.1",
+    "version": "19.0.0.1.6",
     "category": "Accounting/Localizations/EDI",
     "summary": "Campos y modelos base para facturación electrónica AR en Odoo Community",
     "description": """
@@ -25,6 +25,8 @@ l10n_ar_edi encima.
         "certificate",
     ],
     "data": [
+        # Jerga contable AR (Debe/Haber/Saldo) sobre es_419 — ver i18n/es_419.po
+        "data/l10n_ar_accounting_terms.xml",
         # "security/ir.model.access.csv",
         # "views/res_company_view.xml",
         # "views/account_journal_view.xml",

@@ -1,0 +1,53 @@
+# Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details.
+#
+# Override de terminología contable argentina sobre es_419 (Español Latinoamérica).
+# Odoo 19 Community no trae es_AR para el módulo `account`; el idioma activo de la
+# instancia es es_419, que rotula las columnas del mayor como "Débito/Crédito/Balance".
+# En contabilidad argentina esas columnas son "Debe/Haber" y el resultado es el "Saldo".
+# Este .po pisa SOLO esos términos del Libro Diario/Mayor; NO toca "Nota de crédito"
+# ni nada de comprobantes (que es_419 ya tiene bien).
+#
+# Se aplica con overwrite vía data/l10n_ar_accounting_terms.xml (_load_module_terms),
+# porque `of env update` no pasa --i18n-overwrite y de lo contrario no pisaría la
+# traducción existente de es_419.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: l10n_ar_edi_base 19.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-05-30 00:00+0000\n"
+"PO-Revision-Date: 2026-05-30 00:00+0000\n"
+"Last-Translator: Trixocom <soporte@trixocom.com>\n"
+"Language-Team: Trixocom\n"
+"Language: es_419\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#. module: account
+#: model:ir.model.fields,field_description:account.field_account_move_line__debit
+#: model:ir.model.fields,field_description:analytic.field_account_analytic_account__debit
+msgid "Debit"
+msgstr "Debe"
+
+#. module: account
+#: model:ir.model.fields,field_description:account.field_account_move_line__credit
+#: model:ir.model.fields,field_description:analytic.field_account_analytic_account__credit
+msgid "Credit"
+msgstr "Haber"
+
+#. module: account
+#: model:ir.model.fields,field_description:account.field_account_move_line__balance
+msgid "Balance"
+msgstr "Saldo"
+
+#. module: account
+#: model:ir.actions.act_window,name:account.action_account_moves_all
+#: model:ir.actions.act_window,name:account.action_account_moves_all_a
+#: model:ir.actions.act_window,name:account.action_account_moves_all_grouped_matching
+#: model:ir.actions.act_window,name:account.action_account_moves_all_tree
+#: model:ir.actions.act_window,name:account.action_move_line_select
+#: model:ir.ui.menu,name:account.menu_action_account_moves_all
+msgid "Journal Items"
+msgstr "Movimientos contables"

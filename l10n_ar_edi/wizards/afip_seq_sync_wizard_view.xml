@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="l10n_ar_afip_seq_sync_wizard_form" model="ir.ui.view">
+        <field name="name">l10n_ar.afip.seq.sync.wizard.form</field>
+        <field name="model">l10n_ar.afip.seq.sync.wizard</field>
+        <field name="arch" type="xml">
+            <form string="AFIP · Sincronizar numeración">
+                <div class="alert alert-info" role="alert">
+                    Consulta <strong>FECompUltimoAutorizado</strong> por cada tipo de
+                    comprobante del punto de venta. Marcá los que tengan
+                    <em>AFIP adelantado</em> y presioná <strong>Sincronizar</strong>
+                    para que la próxima emisión numere AFIP+1. Es solo lectura contra
+                    AFIP: no consume número.
+                </div>
+                <group>
+                    <field name="journal_id"/>
+                    <field name="pos_number"/>
+                </group>
+                <field name="line_ids">
+                    <list editable="bottom" create="false" delete="false">
+                        <field name="document_type_id" readonly="1"/>
+                        <field name="doc_code" readonly="1"/>
+                        <field name="afip_last" readonly="1"/>
+                        <field name="odoo_last" readonly="1"/>
+                        <field name="status" readonly="1"/>
+                        <field name="afip_error" column_invisible="1"/>
+                        <field name="to_sync"/>
+                    </list>
+                </field>
+                <footer>
+                    <button name="action_sync" type="object" string="Sincronizar seleccionados"
+                            class="btn-primary"/>
+                    <button name="action_refresh" type="object" string="Refrescar"
+                            class="btn-secondary"/>
+                    <button string="Cerrar" class="btn-secondary" special="cancel"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

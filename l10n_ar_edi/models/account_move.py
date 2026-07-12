@@ -30,11 +30,23 @@ from ..lib import payload_fex as payload_fex_lib
 from ..lib import qr_code as qr_lib
 
 # Reutilizamos el cliente de WS del módulo afip_ws
+from odoo.addons.l10n_ar_afip_ws.lib import errors as ws_errors
 from odoo.addons.l10n_ar_afip_ws.lib import transport as ws_transport
 from odoo.addons.l10n_ar_afip_ws.lib import wsfe as ws_wsfe
 from odoo.addons.l10n_ar_afip_ws.lib import wsfex as ws_wsfex
 
 _logger = logging.getLogger(__name__)
+
+_CTX_SYNC = "l10n_ar_trx_sync_afip_seq"  # sync numeracion AFIP solo al postear
+
+# Códigos WSFEv1 que significan "ese número ya fue consumido en AFIP".
+# Ante cualquiera de estos NO hay que reintentar a ciegas: hay que
+# consultar el comprobante con FECompConsultar y, si es el mismo que
+# estábamos emitiendo, adoptar el CAE que AFIP ya otorgó.
+#   10016 → el número (o la fecha) no se corresponde con el próximo a autorizar
+#   10051 → CAE ya emitido para ese comprobante
+#   10100 → reproceso: AFIP ya procesó ese comprobante en una llamada previa
+_WSFE_NRO_YA_CONSUMIDO = (10016, 10051, 10100)
 
 
 class AccountMove(models.Model):
@@ -515,7 +527,25 @@ class AccountMove(models.Model):
         ))
 
     def _l10n_ar_request_cae_wsfe(self):
-        """Flujo WSFEv1 — mercado interno."""
+        """Flujo WSFEv1 — mercado interno.
+
+        **Idempotencia** (incidente real en producción, 10/07/2026):
+        el pedido de CAE viaja *dentro* de la transacción de Odoo. Si Postgres
+        aborta esa transacción (``SERIALIZATION_FAILURE`` por concurrencia —
+        típico con POS y ventas escribiendo a la vez), Odoo hace rollback y
+        **re-ejecuta el RPC entero**, incluyendo este llamado. Pero AFIP no
+        tiene rollback: el número ya quedó autorizado del lado de ellos, y el
+        CAE que devolvió se perdió con la transacción. A partir de ahí Odoo
+        insiste con un número que AFIP ya consumió y **toda** la numeración de
+        ese (PV, tipo) queda trabada con 10016.
+
+        Ningún dato que escribamos en la transacción abortada sobrevive, así
+        que el único lugar donde queda constancia de que el CAE salió es AFIP.
+        Por eso, ante los códigos de "número ya consumido" no abortamos:
+        consultamos el comprobante con ``FECompConsultar`` y, si coincide con
+        el que estábamos emitiendo, adoptamos ese CAE (ver
+        ``_l10n_ar_afip_recuperar_cae``). Si no coincide, propagamos el error.
+        """
         self.ensure_one()
         company = self.company_id
         environment = company.l10n_ar_afip_ws_environment or "testing"
@@ -525,6 +555,9 @@ class AccountMove(models.Model):
         auth = connection.get_auth()
 
         fe_req = self._l10n_ar_get_wsfe_payload()
+        det = (
+            (fe_req.get("FeDetReq") or {}).get("FECAEDetRequest") or [{}]
+        )[0]
 
         tr = ws_transport.CapturingTransport(
             session=ws_transport.build_afip_session(), timeout=60,
@@ -534,12 +567,127 @@ class AccountMove(models.Model):
                 auth=auth, fe_cae_req=fe_req,
                 environment=environment, transport=tr,
             )
+        except ws_errors.WsfeError as exc:
+            if _wsfe_code(exc) in _WSFE_NRO_YA_CONSUMIDO and (
+                self._l10n_ar_afip_recuperar_cae(
+                    det, auth, environment,
+                    motivo="AFIP [%s] %s" % (exc.code, exc.message),
+                )
+            ):
+                # Recuperado: el comprobante ya estaba autorizado en AFIP y es
+                # el nuestro. Queda posted con su CAE real.
+                return
+            raise
         finally:
             # siempre guardamos XML, incluso si hubo excepción
             self.l10n_ar_afip_xml_request = _decode_safe(tr.last_request)
             self.l10n_ar_afip_xml_response = _decode_safe(tr.last_response)
 
         self._l10n_ar_apply_cae_response(response)
+
+    # --------------------------------------------------------------
+    # Recuperación de CAE huérfano (idempotencia contra AFIP)
+    # --------------------------------------------------------------
+    def _l10n_ar_afip_recuperar_cae(self, det, auth, environment, motivo=""):
+        """Consulta el comprobante en AFIP y adopta su CAE si es el nuestro.
+
+        `det` es el dict ``FECAEDetRequest`` que le íbamos a mandar a AFIP.
+        Comparamos contra lo que AFIP tiene registrado en ese número:
+        fecha, importe total, y tipo/número de documento del receptor. Solo
+        si **todo** coincide adoptamos el CAE — si difiere, ese número lo
+        emitió otro sistema (portal AFIP, otra instancia) y hay que
+        resolverlo a mano con el asistente de numeración del diario.
+
+        :return: True si adoptamos un CAE existente, False si no hay nada
+                 que recuperar (el caller re-levanta el error original).
+        """
+        self.ensure_one()
+        cbte_nro = _int_or_none(det.get("CbteDesde"))
+        if not cbte_nro:
+            return False
+
+        tr = ws_transport.CapturingTransport(
+            session=ws_transport.build_afip_session(), timeout=60,
+        )
+        try:
+            remoto = ws_wsfe.comp_consultar(
+                auth=auth,
+                pto_vta=self.journal_id.l10n_ar_afip_pos_number,
+                cbte_tipo=int(self.l10n_latam_document_type_id.code),
+                cbte_nro=cbte_nro,
+                environment=environment,
+                transport=tr,
+            )
+        except Exception as exc:  # noqa: BLE001 -- si la consulta falla, no recuperamos
+            _logger.warning(
+                "AFIP recuperación CAE: falló FECompConsultar (PV %s tipo %s nro %s): %s",
+                self.journal_id.l10n_ar_afip_pos_number,
+                self.l10n_latam_document_type_id.code, cbte_nro, exc,
+            )
+            return False
+
+        if not self._l10n_ar_afip_comprobante_coincide(remoto, det):
+            _logger.warning(
+                "AFIP recuperación CAE: el comprobante %s-%s nro %s que AFIP "
+                "tiene autorizado NO coincide con el que íbamos a emitir "
+                "(%s). No se adopta el CAE. Enviado=%s / AFIP=%s",
+                self.journal_id.l10n_ar_afip_pos_number,
+                self.l10n_latam_document_type_id.code, cbte_nro,
+                self.display_name, det, remoto,
+            )
+            return False
+
+        cae = str(remoto.get("CodAutorizacion") or "")
+        vals = {
+            "l10n_ar_afip_result": "A",
+            "l10n_ar_afip_auth_mode": "CAE",
+            "l10n_ar_afip_auth_code": cae,
+        }
+        vto = remoto.get("FchVto")
+        if vto:
+            vals["l10n_ar_afip_auth_code_due"] = datetime.strptime(
+                str(vto), "%Y%m%d",
+            ).date()
+        self.write(vals)
+        _logger.warning(
+            "AFIP recuperación CAE: %s ya estaba autorizado en AFIP "
+            "(CAE %s, vto %s). Adoptamos el CAE existente en lugar de pedir "
+            "uno nuevo. Motivo: %s",
+            self.display_name, cae, vto, motivo,
+        )
+        self.message_post(body=_(
+            "<b>CAE recuperado de AFIP.</b><br/>"
+            "Este comprobante ya figuraba autorizado en AFIP con el "
+            "CAE <b>%(cae)s</b> (vto. %(vto)s), pero el CAE no había quedado "
+            "registrado en Odoo — típicamente porque la transacción se "
+            "reintentó después de que AFIP ya lo otorgara. Se adoptó el CAE "
+            "existente en vez de pedir uno nuevo, evitando quemar el número "
+            "y desincronizar la numeración.<br/>"
+            "Respuesta de AFIP al reintento: %(motivo)s",
+            cae=cae, vto=vto or "-", motivo=motivo or "-",
+        ))
+        return True
+
+    def _l10n_ar_afip_comprobante_coincide(self, remoto, det):
+        """True si el comprobante que AFIP ya tiene es el mismo que íbamos a emitir."""
+        if not remoto:
+            return False
+        # Tiene que estar efectivamente autorizado con CAE.
+        if not remoto.get("CodAutorizacion"):
+            return False
+        if (remoto.get("EmisionTipo") or "CAE") != "CAE":
+            return False
+        # Sin fecha no hay comparación posible — no adoptamos a ciegas.
+        if not remoto.get("CbteFch") or not det.get("CbteFch"):
+            return False
+        pares = (
+            (_int_or_none(remoto.get("CbteDesde")), _int_or_none(det.get("CbteDesde"))),
+            (str(remoto.get("CbteFch") or ""), str(det.get("CbteFch") or "")),
+            (_round2(remoto.get("ImpTotal")), _round2(det.get("ImpTotal"))),
+            (_int_or_none(remoto.get("DocTipo")), _int_or_none(det.get("DocTipo"))),
+            (_int_or_none(remoto.get("DocNro")), _int_or_none(det.get("DocNro"))),
+        )
+        return all(a is not None and a == b for a, b in pares)
 
     def _l10n_ar_request_cae_wsfex(self):
         """Flujo WSFEXv1 — Factura Electrónica de Exportación.
@@ -859,7 +1007,9 @@ class AccountMove(models.Model):
           * AFIP [10016] Cuit invalido / no autorizado.
           * AFIP errores de red / timeout.
         """
-        posted = super()._post(soft=soft)
+        posted = super(
+            AccountMove, self.with_context(**{_CTX_SYNC: True})
+        )._post(soft=soft)
         moves_to_revert = self.env["account.move"]
         errors = []
         for move in posted:
@@ -916,7 +1066,95 @@ class AccountMove(models.Model):
                 count=len(moves_to_revert),
                 msgs=msgs,
             ))
+        # Trixocom: limpiar overrides de sincronizacion ya consumidos (el
+        # comprobante que tomo AFIP+1 ya tiene CAE). Idempotente.
+        for _mv in posted:
+            if (_mv.country_code == 'AR' and _mv.l10n_ar_afip_auth_code
+                    and _mv.l10n_latam_document_type_id
+                    and _mv.journal_id.l10n_ar_afip_seq_override):
+                _mv.journal_id._l10n_ar_afip_clear_override(
+                    _mv.l10n_latam_document_type_id.code)
         return posted
+
+
+    def _get_last_sequence(self, relaxed=False, with_prefix=None):
+        # Trixocom: sincroniza el arranque de la secuencia WSFEv1 con AFIP.
+        # Hook en _get_last_sequence (no _get_starting_sequence): para una
+        # secuencia nueva el sequence_mixin fuerza seq=0 -> arrancaria en 1.
+        # Devolviendo el ultimo de AFIP como 'anterior', el motor nativo
+        # numera AFIP+1. Numero fijado por el sistema, nunca por el usuario.
+        result = super()._get_last_sequence(relaxed=relaxed, with_prefix=with_prefix)
+        # Trixocom: override tecnico de resincronizacion (asistente de
+        # numeracion AFIP en el diario). Si el tecnico fijo un ultimo-AFIP
+        # para este (diario, tipo), forzamos numerar AFIP+1 aun a mitad de
+        # secuencia. Sin override -> comportamiento identico (cero cambios).
+        if (with_prefix is None and self.env.context.get(_CTX_SYNC)
+                and self.country_code == 'AR' and self.l10n_latam_document_type_id
+                and self.journal_id._l10n_ar_afip_ws_for_emission == 'wsfe'):
+            _ovr = self.journal_id._l10n_ar_afip_get_override(
+                self.l10n_latam_document_type_id.code)
+            if _ovr is not None:
+                return self._get_formatted_sequence(number=int(_ovr))
+        if result or with_prefix is not None:
+            return result
+        if not self.env.context.get(_CTX_SYNC):
+            return result
+        if self.country_code != 'AR' or not self.l10n_latam_use_documents:
+            return result
+        if not self.l10n_latam_document_type_id:
+            return result
+        # _l10n_ar_afip_ws_for_emission es un @property -> sin parentesis.
+        if self.journal_id._l10n_ar_afip_ws_for_emission != 'wsfe':
+            return result
+        try:
+            last_nro = self._l10n_ar_get_afip_last_authorized()
+        except Exception as exc:  # noqa: BLE001 -- no romper el posteo por caida de WS
+            _logger.warning(
+                'l10n_ar_edi seq-sync: fallo FECompUltimoAutorizado %s (PV %s tipo %s): %s',
+                self.display_name, self.journal_id.l10n_ar_afip_pos_number,
+                self.l10n_latam_document_type_id.code, exc)
+            return result
+        if not last_nro:
+            return result
+        _logger.info(
+            'l10n_ar_edi seq-sync: %s (PV %s tipo %s) arranca desde AFIP %s -> proximo %s',
+            self.display_name, self.journal_id.l10n_ar_afip_pos_number,
+            self.l10n_latam_document_type_id.code, last_nro, int(last_nro) + 1)
+        return self._get_formatted_sequence(number=int(last_nro))
+
+    def _l10n_ar_get_afip_last_authorized(self):
+        # FECompUltimoAutorizado(PV, tipo) -> ultimo Nro autorizado (int) o 0.
+        self.ensure_one()
+        company = self.company_id
+        environment = company.l10n_ar_afip_ws_environment or 'testing'
+        connection = self.env['l10n_ar.afip.ws.connection']._get_or_create(
+            company, 'wsfe', environment)
+        auth = connection.get_auth()
+        transport = ws_transport.CapturingTransport(
+            session=ws_transport.build_afip_session(), timeout=60)
+        res = ws_wsfe.comp_ultimo_autorizado(
+            auth=auth, pto_vta=self.journal_id.l10n_ar_afip_pos_number,
+            cbte_tipo=int(self.l10n_latam_document_type_id.code),
+            environment=environment, transport=transport)
+        return int((res or {}).get('cbte_nro') or 0)
+
+def _wsfe_code(exc):
+    """Código numérico de un WsfeError, o None si no es numérico ('fault', ...)."""
+    return _int_or_none(getattr(exc, "code", None))
+
+
+def _int_or_none(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _round2(value):
+    try:
+        return round(float(value), 2)
+    except (TypeError, ValueError):
+        return None
 
 
 def _decode_safe(maybe_bytes):

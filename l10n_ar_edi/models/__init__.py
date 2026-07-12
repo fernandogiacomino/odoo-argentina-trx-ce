@@ -6,3 +6,4 @@ from . import account_move
 from . import account_move_wscdc
 from . import account_move_fce
 from . import account_move_currency
+from . import account_journal
