@@ -1,11 +1,20 @@
 # Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details.
-"""Extensiones a `account.move` para soporte CAEA.
+"""Extensiones a `account.move` para soporte CAEA (RG 5785/2025).
 
 * `l10n_ar_caea_id`: link al `l10n_ar.caea` que se usó al emitir.
 * `l10n_ar_caea_rendido`: True si el comprobante ya fue informado a AFIP
   vía `FECAEARegInformativo`.
-* Override de `_l10n_ar_request_cae_wsfe` con fallback CAEA — si WSFEv1
-  da timeout o `TransportError`, usa el CAEA vigente.
+* `l10n_ar_caea_emission_dt`: fecha/hora REAL de emisión (relevante para
+  comprobantes emitidos offline desde POS y para CbteFchHsGen).
+* Emisión en PV exclusivo CAEA: los moves posteados en un journal con
+  `l10n_ar_afip_pos_caea` reciben el CAEA vigente automáticamente, sin
+  tocar la red (hook en `_post`).
+* Contingencia reactiva: si WSFEv1 da `TransportError`, el move se
+  RE-RUTEA al diario de contingencia (`l10n_ar_caea_journal_id`) y se
+  numera en el PV exclusivo CAEA — exigencia de RG 5785/2025. (Antes se
+  estampaba el CAEA sobre el PV CAE, lo cual AFIP rechaza al rendir.)
+* Contingencia preventiva: si `afip_webservice_monitor` está instalado y
+  reporta WSFE caído, se re-rutea directo sin esperar el timeout.
 """
 import logging
 
@@ -54,44 +63,152 @@ class AccountMove(models.Model):
         copy=False,
         readonly=True,
     )
+    l10n_ar_caea_emission_dt = fields.Datetime(
+        string="Emisión real (CAEA)",
+        copy=False,
+        readonly=True,
+        help="Fecha/hora real en que se emitió el comprobante en "
+             "contingencia (p.ej. en el POS offline). Se usa como "
+             "CbteFchHsGen en la rendición FECAEARegInformativo.",
+    )
+
+    # ------------------------------------------------------------------
+    # Emisión — dispatcher y contingencia
+    # ------------------------------------------------------------------
+    def _l10n_ar_request_cae(self):
+        """Override del dispatcher CAE.
+
+        * Journal PV exclusivo CAEA → aplica CAEA local, jamás WSFE.
+          (Cubre invocaciones manuales; el hook `_post` de l10n_ar_edi ya
+          saltea estos journals porque no tienen WS de emisión.)
+        * Preempción: si el monitor reporta WSFE caído → re-ruteo directo
+          al diario CAEA sin esperar el timeout de 60s.
+        """
+        self.ensure_one()
+        if self.journal_id.l10n_ar_afip_pos_caea:
+            return self._l10n_ar_emit_on_caea_journal()
+        if self._l10n_ar_caea_should_preempt():
+            _logger.info(
+                "Monitor reporta WSFE caído — re-ruteo preventivo a CAEA: %s",
+                self.display_name,
+            )
+            return self._l10n_ar_reroute_to_caea(reason="preempt_monitor")
+        return super()._l10n_ar_request_cae()
 
     def _l10n_ar_request_cae_wsfe(self):
-        """Override con fallback a CAEA si WSFE no responde."""
+        """Override con fallback a CAEA si WSFE no responde.
+
+        A diferencia de versiones anteriores (<19.0.2.0.0), el fallback
+        NO estampa el CAEA sobre el PV CAE: re-rutea el comprobante al
+        diario de contingencia (PV exclusivo CAEA) como exige la norma.
+        """
         self.ensure_one()
         try:
             return super()._l10n_ar_request_cae_wsfe()
         except ws_errors.TransportError as e:
-            # Solo intentamos fallback si la company habilita CAEA.
             if not self.company_id.l10n_ar_caea_enabled:
                 raise
             _logger.warning(
-                "WSFEv1 transport error en %s — intentando fallback CAEA: %s",
-                self.name, e,
+                "WSFEv1 transport error en %s — re-ruteando a CAEA: %s",
+                self.display_name, e,
             )
-            caea = self.env["l10n_ar.caea"].find_active(
-                self.company_id,
-                target_date=self.invoice_date or fields.Date.context_today(self),
-            )
-            if not caea:
-                raise UserError(_(
-                    "WSFEv1 no respondió y no hay CAEA vigente para %s. "
-                    "Solicitá un CAEA desde Configuración → Localización "
-                    "Argentina → 'Solicitar CAEA' antes del próximo período."
-                ) % self.company_id.name) from e
-            self.env["l10n_ar.caea.log"]._record_event(
-                self.env, self.company_id, "solicitar", success=True,
-                caea=caea,
-                message="Fallback CAEA aplicado a %s tras error WSFE: %s" % (self.name, e),
-                triggered_by="post_fallback",
-            )
-            self._l10n_ar_apply_caea(caea)
+            return self._l10n_ar_reroute_to_caea(reason=str(e))
+
+    def _l10n_ar_caea_should_preempt(self):
+        """True si conviene ni intentar WSFE (monitor dice caído).
+
+        Usa el estado CACHEADO del monitor (sin re-chequear contra AFIP)
+        para decidir rápido. Guardas: módulo monitor instalado, CAEA
+        habilitado, diario de contingencia mapeado y CAEA vigente.
+        """
+        self.ensure_one()
+        if not self.company_id.l10n_ar_caea_enabled:
+            return False
+        if not self.journal_id.l10n_ar_caea_journal_id:
+            return False
+        if "afip.service.status" not in self.env:
+            return False
+        try:
+            available = self.env["afip.service.status"].sudo().is_afip_available("wsfe")
+        except Exception:  # noqa: BLE001 — el monitor nunca debe romper la emisión
+            return False
+        if available:
+            return False
+        return bool(self.env["l10n_ar.caea"].find_active(
+            self.company_id,
+            target_date=self.invoice_date or fields.Date.context_today(self),
+        ))
+
+    def _l10n_ar_reroute_to_caea(self, reason=""):
+        """Mueve este comprobante al diario de contingencia y le aplica
+        el CAEA vigente. El número se genera en la secuencia local del
+        PV exclusivo CAEA (sin red).
+
+        Se llama con el move `posted` (desde el hook de l10n_ar_edi) o
+        `draft`. Si estaba posted: draft → cambio de diario → repost.
+        El repost no pide CAE porque el move ya sale con auth_code.
+        """
+        self.ensure_one()
+        company = self.company_id
+        caea_journal = self.journal_id.l10n_ar_caea_journal_id
+        if not caea_journal:
+            raise UserError(_(
+                "WSFEv1 no responde y el diario %s no tiene configurado "
+                "un 'Diario de contingencia CAEA'. Configuralo en el "
+                "diario (pestaña Asientos contables) apuntando al PV "
+                "exclusivo CAEA habilitado en ARCA."
+            ) % self.journal_id.name)
+        caea = self.env["l10n_ar.caea"].find_active(
+            company,
+            target_date=self.invoice_date or fields.Date.context_today(self),
+        )
+        if not caea:
+            raise UserError(_(
+                "WSFEv1 no respondió y no hay CAEA vigente para %s. "
+                "Solicitá un CAEA desde Configuración → Localización "
+                "Argentina → 'Solicitar CAEA' antes del próximo período."
+            ) % company.name)
+
+        old_name = self.name
+        old_journal_name = self.journal_id.name
+        was_posted = self.state == "posted"
+        if was_posted:
+            self.button_draft()
+        self.write({"journal_id": caea_journal.id, "name": "/"})
+        self._l10n_ar_apply_caea(caea)
+        self.env["l10n_ar.caea.log"]._record_event(
+            self.env, company, "solicitar", success=True,
+            caea=caea,
+            message="Contingencia CAEA: %s re-ruteado de %s a PV %s. Motivo: %s" % (
+                old_name, old_journal_name,
+                caea_journal.l10n_ar_afip_pos_number, reason or "WSFE caído",
+            ),
+            triggered_by="post_fallback",
+        )
+        if was_posted:
+            self.action_post()
+
+    def _l10n_ar_emit_on_caea_journal(self):
+        """Emisión directa en un PV exclusivo CAEA (sin red)."""
+        self.ensure_one()
+        if self.l10n_ar_afip_auth_code:
+            return
+        caea = self.env["l10n_ar.caea"].find_active(
+            self.company_id,
+            target_date=self.invoice_date or fields.Date.context_today(self),
+        )
+        if not caea:
+            raise UserError(_(
+                "No hay CAEA vigente para emitir en el diario de "
+                "contingencia %s. Solicitá un CAEA primero."
+            ) % self.journal_id.name)
+        self._l10n_ar_apply_caea(caea)
 
     def _l10n_ar_apply_caea(self, caea):
         """Asigna el CAEA al move como auth_code, sin pegarle a AFIP.
 
-        Genera el doc_number con la próxima secuencia local (Odoo se
-        encarga de eso al postear normalmente). El comprobante queda
-        emitido off-line; se rinde después con el cron.
+        El comprobante queda emitido off-line; se rinde después con el
+        cron (`FECAEARegInformativo`).
         """
         self.ensure_one()
         self.write({
@@ -101,6 +218,9 @@ class AccountMove(models.Model):
             "l10n_ar_afip_result": "A",  # asumido — se confirma al rendir
             "l10n_ar_caea_id": caea.id,
             "l10n_ar_caea_rendido": False,
+            "l10n_ar_caea_emission_dt": (
+                self.l10n_ar_caea_emission_dt or fields.Datetime.now()
+            ),
             "l10n_ar_afip_observations": _(
                 "Comprobante emitido en modo CAEA por contingencia. "
                 "Pendiente de rendición a AFIP (FECAEARegInformativo)."
@@ -114,6 +234,49 @@ class AccountMove(models.Model):
             "Move %s emitido con CAEA %s — pendiente rendición.",
             self.name, caea.code,
         )
+
+    # ------------------------------------------------------------------
+    # Hook _post — diarios CAEA emiten sin red
+    # ------------------------------------------------------------------
+    def _post(self, soft=True):
+        """Tras el post (y el hook CAE de l10n_ar_edi, que saltea los
+        diarios CAEA por no tener WS), aplica el CAEA vigente a los
+        comprobantes posteados en PV exclusivos CAEA.
+
+        Si no hay CAEA vigente, revertimos a borrador con error claro —
+        misma semántica atómica que el hook de l10n_ar_edi.
+        """
+        posted = super()._post(soft=soft)
+        to_revert = self.env["account.move"]
+        errors = []
+        for move in posted:
+            if move.country_code != "AR":
+                continue
+            if move.move_type not in ("out_invoice", "out_refund", "out_receipt"):
+                continue
+            if not move.journal_id.l10n_ar_afip_pos_caea:
+                continue
+            if move.l10n_ar_afip_auth_code:
+                continue
+            try:
+                move._l10n_ar_emit_on_caea_journal()
+            except UserError as exc:
+                to_revert |= move
+                errors.append((move.display_name or str(move.id), str(exc)))
+        if to_revert:
+            for m in to_revert:
+                try:
+                    m.button_draft()
+                except Exception:  # noqa: BLE001
+                    _logger.exception(
+                        "No se pudo revertir a borrador %s.", m.display_name,
+                    )
+            msgs = "\n\n".join("• %s\n%s" % (n, e) for n, e in errors)
+            raise UserError(_(
+                "No se pudo emitir con CAEA %(count)d comprobante(s):\n\n%(msgs)s",
+                count=len(to_revert), msgs=msgs,
+            ))
+        return posted
 
     # ------------------------------------------------------------------
     # Rendición informativa
@@ -167,7 +330,7 @@ class AccountMove(models.Model):
     def _l10n_ar_caea_rendir_caea(self, caea):
         """Rinde un CAEA específico: si tiene moves pendientes →
         FECAEARegInformativo. Si no → FECAEASinMovimientoInformar
-        por cada punto de venta. Marca como `reported` al final."""
+        por cada punto de venta CAEA. Marca como `reported` al final."""
         moves = self.search([
             ("company_id", "=", caea.company_id.id),
             ("l10n_ar_afip_auth_mode", "=", "CAEA"),
@@ -181,9 +344,12 @@ class AccountMove(models.Model):
             still_pending = moves.filtered(lambda m: not m.l10n_ar_caea_rendido)
             if not still_pending:
                 caea.write({"state": "reported"})
+            # PVs CAEA que NO emitieron nada en la quincena igual deben
+            # informarse "sin movimiento".
+            used_journals = moves.mapped("journal_id")
+            self._l10n_ar_caea_sin_movimiento(caea, exclude_journals=used_journals)
         else:
-            # Sin movimiento — informar por cada punto de venta
-            # potencial (los que tenga la company configurados).
+            # Sin movimiento en todos los PV CAEA de la company.
             self._l10n_ar_caea_sin_movimiento(caea)
             caea.write({"state": "reported"})
 
@@ -205,25 +371,29 @@ class AccountMove(models.Model):
                 )
 
     @api.model
-    def _l10n_ar_caea_sin_movimiento(self, caea):
-        """Informa a AFIP que `caea` se cierra sin movimientos.
+    def _l10n_ar_caea_sin_movimiento(self, caea, exclude_journals=None):
+        """Informa a AFIP los PV CAEA que cierran la quincena sin
+        movimientos (`FECAEASinMovimientoInformar`).
 
-        Hay que informar 1 vez por cada punto de venta de la company
-        que esté habilitado para WSFEv1 (típicamente solo 1).
+        RG 5785/2025: SOLO se informan los puntos de venta exclusivos
+        CAEA. Informar un PV CAE acá es un error (AFIP lo rechaza).
         """
         Log = self.env["l10n_ar.caea.log"]
         company = caea.company_id
         environment = company.l10n_ar_afip_ws_environment or "testing"
         Journal = self.env["account.journal"].sudo()
-        # Detectar puntos de venta WSFEv1 de la company.
         journals = Journal.search([
             ("company_id", "=", company.id),
+            ("l10n_ar_afip_pos_caea", "=", True),
             ("l10n_ar_afip_pos_number", "!=", False),
         ])
+        if exclude_journals:
+            journals -= exclude_journals
         if not journals:
             Log._record_event(
                 self.env, company, "sin_movimiento", success=False,
-                caea=caea, message="No hay journals con punto de venta",
+                caea=caea,
+                message="No hay journals PV CAEA para informar sin movimiento",
                 triggered_by="cron",
             )
             return
@@ -290,8 +460,7 @@ class AccountMove(models.Model):
             base = m._l10n_ar_get_wsfe_payload()
             det = base["FeDetReq"][0]["FECAEDetRequest"].copy()
             det["CAEA"] = m.l10n_ar_afip_auth_code
-            if m.invoice_date:
-                det["CbteFchHsGen"] = m.invoice_date.strftime("%Y%m%d") + "080000"
+            det["CbteFchHsGen"] = m._l10n_ar_caea_get_fch_hs_gen()
             det_list.append({"FECAEADetRequest": det})
 
         req = {
@@ -359,3 +528,21 @@ class AccountMove(models.Model):
             "Batch CAEA rendido: %s/%s comprobantes aprobados",
             len(rendidos), len(self),
         )
+
+    def _l10n_ar_caea_get_fch_hs_gen(self):
+        """CbteFchHsGen (YYYYMMDDHHMMSS, hora local AR) para la rendición.
+
+        Usa la fecha/hora real de emisión si la tenemos (POS offline);
+        si no, invoice_date a las 08:00 (comportamiento histórico).
+        """
+        self.ensure_one()
+        if self.l10n_ar_caea_emission_dt:
+            local_dt = fields.Datetime.context_timestamp(
+                self.with_context(tz=self.company_id.partner_id.tz
+                                  or "America/Argentina/Buenos_Aires"),
+                self.l10n_ar_caea_emission_dt,
+            )
+            return local_dt.strftime("%Y%m%d%H%M%S")
+        if self.invoice_date:
+            return self.invoice_date.strftime("%Y%m%d") + "080000"
+        return fields.Date.context_today(self).strftime("%Y%m%d") + "080000"

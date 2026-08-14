@@ -29,10 +29,19 @@ class PosOrder(models.Model):
         order (limita la lista de fields) — mejor traer los datos via RPC
         cuando se va a renderizar el ticket. Bajo costo (1 query, 1 record).
 
-        :param order_id: ID del pos.order.
+        :param order_id: ID (int) o UUID (str) del pos.order. Los pedidos
+            que todavía no se sincronizaron llegan del frontend con su
+            ``uuid`` en lugar del id numérico — si se usa ese valor en un
+            ``browse`` directo, el ORM arma un IN (char por char) y explota
+            con ``invalid input syntax for type integer``.
         :return: dict con los campos AR de la factura, o None.
         """
-        order = self.browse(order_id).exists()
+        if isinstance(order_id, int) or (
+            isinstance(order_id, str) and order_id.isdigit()
+        ):
+            order = self.browse(int(order_id)).exists()
+        else:
+            order = self.search([("uuid", "=", str(order_id))], limit=1)
         if not order or not order.account_move:
             return None
         am = order.account_move

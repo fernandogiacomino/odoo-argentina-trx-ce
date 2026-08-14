@@ -52,8 +52,11 @@ class AccountJournal(models.Model):
         connection = self.env["l10n_ar.afip.ws.connection"]._get_or_create(
             company, "wsfe", environment)
         auth = connection.get_auth()
-        transport = ws_transport.CapturingTransport(
-            session=ws_transport.build_afip_session(), timeout=60)
+        # build_transport() da el transporte con cache de WSDL y timeouts
+        # separados. Armarlo a mano dejaba esta consulta fuera de la cache: el
+        # 12/08/2026, con AFIP devolviendo 503 en el WSDL, la emision seguia
+        # andando y el diagnostico no.
+        transport = ws_transport.build_transport()
         res = ws_wsfe.comp_ultimo_autorizado(
             auth=auth, pto_vta=self.l10n_ar_afip_pos_number,
             cbte_tipo=int(cbte_tipo), environment=environment,

@@ -491,16 +491,17 @@ class PadronArbaAlicuota(models.Model):
             ))
         if not rows:
             return 0
-        # executemany es ~3-5x más rápido que una query gigante con VALUES.
-        self.env.cr.executemany(
+        # Odoo 19 eliminó Cursor.executemany. execute_values arma lotes
+        # (page_size) con una sola sentencia por lote: mismo orden de
+        # rendimiento, y es la API vigente.
+        self.env.cr.execute_values(
             """
             INSERT INTO l10n_ar_padron_arba_alicuota
                 (import_id, cuit, date_from, date_to, fecha_pub,
                  aliquot_perception, aliquot_retention, tipo, alta_baja,
                  grupo_perception, grupo_retention,
                  create_uid, create_date, write_uid, write_date)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, NOW() AT TIME ZONE 'UTC', %s, NOW() AT TIME ZONE 'UTC')
+            VALUES %s
             ON CONFLICT (import_id, cuit, date_from) DO UPDATE SET
                 date_to = EXCLUDED.date_to,
                 aliquot_perception = EXCLUDED.aliquot_perception,
@@ -515,6 +516,10 @@ class PadronArbaAlicuota(models.Model):
                 row + (self.env.uid, self.env.uid)
                 for row in rows
             ],
+            template=(
+                "(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, "
+                "%s, NOW() AT TIME ZONE 'UTC', %s, NOW() AT TIME ZONE 'UTC')"
+            ),
         )
         # invalidar cache
         self.env["l10n_ar.padron.arba.alicuota"].invalidate_model()

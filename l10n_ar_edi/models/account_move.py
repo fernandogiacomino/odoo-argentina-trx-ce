@@ -19,11 +19,13 @@ Responsabilidades de este archivo:
 - Post-procesar observaciones en UI: solo las guardamos en texto plano;
   el wizard de consulta AFIP es otro entregable.
 """
+import base64
 import logging
 from datetime import datetime
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
+from odoo.tools import config as _odoo_config
 
 from ..lib import payload as payload_lib
 from ..lib import payload_fex as payload_fex_lib
@@ -36,6 +38,29 @@ from odoo.addons.l10n_ar_afip_ws.lib import wsfe as ws_wsfe
 from odoo.addons.l10n_ar_afip_ws.lib import wsfex as ws_wsfex
 
 _logger = logging.getLogger(__name__)
+
+
+def _l10n_ar_in_test_mode():
+    """¿Estamos corriendo tests?
+
+    Odoo 19 eliminó ``Registry.in_test_mode()`` (existía hasta 18.0). El
+    indicador vigente es ``odoo.modules.module.current_test``, que se lee en
+    runtime, y ``config['test_enable']`` para los tests at-install.
+
+    Ante cualquier problema devuelve False: en producción el comportamiento
+    seguro es commitear el CAE apenas AFIP lo otorga.
+    """
+    try:
+        from odoo.modules import module as _odoo_module
+
+        if getattr(_odoo_module, "current_test", False):
+            return True
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        return bool(_odoo_config.get("test_enable"))
+    except Exception:  # noqa: BLE001
+        return False
 
 _CTX_SYNC = "l10n_ar_trx_sync_afip_seq"  # sync numeracion AFIP solo al postear
 
@@ -93,6 +118,37 @@ class AccountMove(models.Model):
             except Exception as e:  # pragma: no cover - defensivo
                 _logger.warning("No pude calcular el QR para move %s: %s", move.id, e)
                 move.l10n_ar_afip_qr_code = False
+
+    def _l10n_ar_afip_qr_image(self, size=400):
+        """PNG del QR RG 4291 ya codificado en base64, para embeber en el PDF.
+
+        El reporte NO debe apuntar a ``/report/barcode/...``: esa URL es
+        relativa y wkhtmltopdf la resuelve contra ``web.base.url``, o sea que
+        sale a Internet y vuelve por el proxy/CDN publico. Si ese request
+        falla (challenge de Cloudflare, DNS, firewall) el PDF se emite igual
+        pero SIN el QR, que es obligatorio en el comprobante (RG 4291).
+        Generando la imagen in-process el QR no depende de la red.
+
+        Devuelve ``False`` si el move no tiene QR (sin CAE) o si la
+        generacion falla, para que el template no rompa el PDF.
+        """
+        self.ensure_one()
+        if not self.l10n_ar_afip_qr_code:
+            return False
+        try:
+            png = self.env["ir.actions.report"].sudo().barcode(
+                "QR",
+                self.l10n_ar_afip_qr_code,
+                width=size,
+                height=size,
+                quiet=0,
+            )
+        except Exception as e:  # pragma: no cover - defensivo
+            _logger.warning(
+                "No pude generar la imagen del QR para move %s: %s", self.id, e
+            )
+            return False
+        return base64.b64encode(png)
 
     # --------------------------------------------------------------
     # Mapeo account.move → payload AFIP
@@ -559,8 +615,8 @@ class AccountMove(models.Model):
             (fe_req.get("FeDetReq") or {}).get("FECAEDetRequest") or [{}]
         )[0]
 
-        tr = ws_transport.CapturingTransport(
-            session=ws_transport.build_afip_session(), timeout=60,
+        tr = ws_transport.build_transport(
+            data_dir=_odoo_config.get("data_dir"),
         )
         try:
             response = ws_wsfe.cae_solicitar(
@@ -606,8 +662,8 @@ class AccountMove(models.Model):
         if not cbte_nro:
             return False
 
-        tr = ws_transport.CapturingTransport(
-            session=ws_transport.build_afip_session(), timeout=60,
+        tr = ws_transport.build_transport(
+            data_dir=_odoo_config.get("data_dir"),
         )
         try:
             remoto = ws_wsfe.comp_consultar(
@@ -723,8 +779,8 @@ class AccountMove(models.Model):
         auth = connection.get_auth()
 
         # 1) Construir el payload (necesita last_id y cbte_nro).
-        tr = ws_transport.CapturingTransport(
-            session=ws_transport.build_afip_session(), timeout=60,
+        tr = ws_transport.build_transport(
+            data_dir=_odoo_config.get("data_dir"),
         )
         try:
             last_id = ws_wsfex.get_last_id(
@@ -1025,6 +1081,16 @@ class AccountMove(models.Model):
                 continue
             try:
                 move._l10n_ar_request_cae()
+                # AFIP ya otorgo el CAE. Lo persistimos ACA, antes de seguir
+                # con el resto de la transaccion. Si el worker se muere despues
+                # (limit_time_real), si hay un lock, o si el RPC se reintenta,
+                # el CAE ya esta en Odoo y el numero no se pierde. Sin esto, el
+                # rollback deja el numero consumido en AFIP y perdido aca, que
+                # es exactamente lo que trabo la facturacion el 07/08 y el
+                # 11/08 de 2026. Es el mismo criterio que usa Odoo Enterprise.
+                if not (self.env.context.get("l10n_ar_skip_cae_commit")
+                        or _l10n_ar_in_test_mode()):
+                    self.env.cr.commit()
             except UserError as exc:
                 moves_to_revert |= move
                 errors.append((move.display_name or str(move.id), str(exc)))

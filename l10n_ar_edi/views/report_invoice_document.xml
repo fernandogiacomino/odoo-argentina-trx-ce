@@ -25,9 +25,12 @@
             <t t-set="custom_footer">
                 <div class="row">
                     <div name="footer_left_column" class="col-8 text-start">
-                        <!-- QR AFIP — solo si la factura tiene CAE. -->
-                        <t t-if="o.l10n_ar_afip_qr_code">
-                            <img t-att-src="'/report/barcode/?barcode_type=QR&amp;value=%s&amp;width=400&amp;height=400&amp;quiet=0' % o.l10n_ar_afip_qr_code"
+                        <!-- QR AFIP - solo si la factura tiene CAE.
+                             Imagen embebida en base64: NO usar /report/barcode,
+                             que obliga a wkhtmltopdf a salir a la URL publica. -->
+                        <t t-set="afip_qr_img" t-value="o._l10n_ar_afip_qr_image()"/>
+                        <t t-if="afip_qr_img">
+                            <img t-att-src="image_data_uri(afip_qr_img)"
                                  style="height: 110px; width: 110px;"
                                  alt="QR AFIP"/>
                         </t>

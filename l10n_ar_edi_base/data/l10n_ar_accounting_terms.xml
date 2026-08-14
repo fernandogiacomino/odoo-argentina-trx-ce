@@ -3,8 +3,8 @@
 <odoo>
     <!--
         Jerga contable argentina (Debe / Haber / Saldo / Movimientos contables)
-        sobre el idioma activo es_419, pisando la traducción genérica de Odoo
-        (Débito / Crédito / Balance / Apuntes contables).
+        sobre los idiomas AR ACTIVOS de la instancia (es_AR y/o es_419), pisando la
+        traducción genérica de Odoo (Débito / Crédito / Balance / Apuntes contables).
 
         Dos disparadores:
           1. <function>: aplica en el momento del install/update. Alcanza para los
@@ -16,13 +16,16 @@
              que es idempotente (early-return si ya está en AR), así la corrida diaria
              es casi un no-op.
 
+        Si no hay ningún idioma AR activo, el hook no hace nada: nunca escribe sobre
+        un idioma no instalado (eso abortaba el `-u`).
+
         Sin noupdate => en cada update se re-arma el cron (nextcall se reescribe a
         pasado) y se vuelve a disparar apenas reinicia.
     -->
     <function model="ir.module.module" name="_l10n_ar_apply_accounting_terms"/>
 
     <record id="ir_cron_l10n_ar_accounting_terms" model="ir.cron">
-        <field name="name">Jerga contable AR: Debe/Haber/Saldo (es_419)</field>
+        <field name="name">Jerga contable AR: Debe/Haber/Saldo</field>
         <field name="model_id" ref="base.model_ir_module_module"/>
         <field name="state">code</field>
         <field name="code">model._l10n_ar_apply_accounting_terms()</field>

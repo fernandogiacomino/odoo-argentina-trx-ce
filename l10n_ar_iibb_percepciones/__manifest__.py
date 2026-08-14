@@ -1,7 +1,7 @@
 # Part of l10n-ar-edi-community. See LICENSE file for full copyright and licensing details.
 {
     "name": "Argentina EDI — Percepciones y Retenciones IIBB",
-    "version": "19.0.1.1.0",
+    "version": "19.0.1.1.1",
     "category": "Accounting/Localizations",
     "summary": "Percepciones y retenciones IIBB provinciales: ARBA, AGIP, Santa Fe, Córdoba",
     "description": """
